@@ -2893,7 +2893,7 @@ vector<handle_t> TargetValueSearch::tv_path(const pos_t& pos_1, const pos_t& pos
         //Get path for the best that is longer than the target
         return get_min_path(best_long.second);
 
-    } else if (next_best.first <= tolerance) {
+    } else if (next_best.first != -1 && next_best.first <= tolerance) {
         
         //Backtrack to get path
         list<handle_t> result;
