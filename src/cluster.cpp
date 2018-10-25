@@ -2523,7 +2523,7 @@ bool TargetValueSearch::tv_path_exists(const pos_t& pos_1, const pos_t& pos_2, i
     
 vector<handle_t> TargetValueSearch::tv_path(const pos_t& pos_1, const pos_t& pos_2, int64_t target_value, int64_t tolerance) {
 
-    bool exact_min = true;
+    bool exact_min = false;//TODO: Put this somewhere else, should be true if the min heuristic gives an exact value but I'm not sure if it's right yet
     DistanceHeuristic& min_distance = *lower_bound_heuristic;
     DistanceHeuristic& max_distance = *upper_bound_heuristic;
     
