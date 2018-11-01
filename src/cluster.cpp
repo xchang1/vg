@@ -2767,7 +2767,6 @@ vector<handle_t> TargetValueSearch::tv_phase2(const pos_t& pos_1, const pos_t& p
 
     DistanceHeuristic& min_distance = *lower_bound_heuristic;
     DistanceHeuristic& max_distance = *upper_bound_heuristic;
-    int64_t offset_1 = offset(pos_1);
     int64_t offset_2 = offset(pos_2);
     auto get_min_path = [&](pair<pair<id_t, bool>, int64_t> node) 
        -> vector<handle_t> {

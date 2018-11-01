@@ -16,11 +16,16 @@
 #include <random>
 #include <time.h> 
 
-//#define print
-
 namespace vg {
 namespace unittest {
 
+    int64_t pathLen(pos_t pos1, pos_t pos2, vector<handle_t> path, VG g) {
+        int64_t len = offset(pos2) - offset(pos1);
+        for (size_t i = 0, end = path.size()-1 ; i < end ; i++) {
+            len += g.get_length(path[i]);
+        }
+        return len;
+    }
 
     TEST_CASE( "TVS for simple nested snarl",
                    "[tvs][bug]" ) {
@@ -78,6 +83,7 @@ namespace unittest {
             REQUIRE(tvs.tv_path(pos1, pos5, 7, 1).size() == 0);
 
             REQUIRE(tvs.tv_path(pos1, pos5, 8, 4).size() == 5);
+            REQUIRE(pathLen(pos1, pos5, tvs.tv_path(pos1, pos5, 8, 4), graph) == 9);
             REQUIRE(tvs.tv_path(pos1, pos5, 9, 4).size() == 5);
             REQUIRE(tvs.tv_path(pos1, pos8, 4, 4).size() == 2);
             REQUIRE(tvs.tv_path(pos1, pos8, 3, 4).size() == 2);
@@ -227,7 +233,7 @@ namespace unittest {
     TEST_CASE( "TVS for random graph",
                    "[tvs]" ) {
         for (int i = 0; i  < 0; i++) {
-            VG graph = randomGraph(1000, 20, 100);
+            VG graph = randomGraph(0, 20, 100);
             CactusSnarlFinder bubble_finder(graph);
             SnarlManager snarl_manager = bubble_finder.find_snarls();
          
@@ -274,11 +280,15 @@ namespace unittest {
  
                 int64_t minDist = di.minDistance(pos1, pos2);
                 int64_t maxDist = di.maxDistance(pos1, pos2);
-                if (minDist != -1 && maxDist != 20 && minDist <= maxDist) {
+                if (minDist != -1 && minDist <= maxDist && minDist <= 20) {
 
+                    REQUIRE(tvs.tv_path(pos1, pos2, minDist, 1).size() !=0);
                     REQUIRE(tvs.tv_path(pos1, pos2, minDist-10, 11).size() !=0);
                     REQUIRE(tvs.tv_path(pos1, pos2, minDist+10, 11).size() !=0);
-                    REQUIRE(tvs.tv_path(pos1, pos2, minDist, 1).size() !=0);
+                    REQUIRE(abs(minDist-10-pathLen(pos1, pos2, 
+                         tvs.tv_path(pos1, pos2, minDist-10, 15),graph)) <= 11);
+                    REQUIRE(abs(minDist+10-pathLen(pos1, pos2, 
+                         tvs.tv_path(pos1, pos2, minDist+10, 15),graph)) <= 11);
                 }
 
             }
