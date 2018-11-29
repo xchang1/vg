@@ -270,6 +270,13 @@ class DistanceIndex {
             void calculateMaxDistances(unordered_set<pair<id_t, bool>>& sinkNodes,
                       int_vector<>& nodeToComponent,int_vector<>& maxDists, 
                       int_vector<>& minDistsFd, int_vector<>& minDistsRev);
+   
+            vector<pair<id_t, bool>> topologicalishOrder( int_vector<>& nodeToComponent,
+                             int_vector<>& maxDists, int_vector<>& minDistsFd,
+                             int_vector<>& minDistsRev, 
+                             uint64_t currComponent, bool onlyCycles);
+            vector<handle_t> cpp_order(hash_set<pair<id_t, bool>> nodes,
+                                        pair<id_t, bool> startNode);
 
         friend class DistanceIndex;
         friend class TestDistanceIndex;

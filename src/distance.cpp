@@ -16,10 +16,6 @@ DistanceIndex::DistanceIndex(HandleGraph* vg, SnarlManager* snarlManager, uint64
       accurate to 
     */
 
-    if (snarlManager->top_level_snarls().size() == 0 && maxNodeID > 1) {
- 
-        throw runtime_error("Snarl manager is empty");       
-    }
     minNodeID = -1;
     maxNodeID = -1;
 
@@ -438,6 +434,10 @@ int64_t DistanceIndex::calculateMinIndex(const Chain* chain) {
         auto addNode = [&](const handle_t& h)-> bool {
             allNodes.insert(make_pair(ng.get_id(h), ng.get_is_reverse(h)));
             allNodes.insert(make_pair(ng.get_id(h), !ng.get_is_reverse(h)));
+            minNodeID = minNodeID == -1 ? ng.get_id(h) : 
+                                   min(minNodeID, ng.get_id(h));
+            maxNodeID = max(maxNodeID, ng.get_id(h));
+        
             return true;
                    
         };
@@ -469,9 +469,6 @@ int64_t DistanceIndex::calculateMinIndex(const Chain* chain) {
             //Use each node in the snarl as start of djikstra search
 
 
-            minNodeID = minNodeID == -1 ? startID.first : 
-                                   min(minNodeID, startID.first);
-            maxNodeID = max(maxNodeID, startID.first);
 
             handle_t startHandle = 
                            graph->get_handle(startID.first, startID.second);
@@ -2875,6 +2872,370 @@ void DistanceIndex::MaxDistanceIndex::printSelf() {
     cerr << endl << endl;
 }
 
+/*
+vector<pair<id_t, bool>> DistanceIndex::MaxDistanceIndex::topologicalishOrder( 
+        int_vector<>& nodeToComponent, int_vector<>& maxDists, 
+        int_vector<>& minDistsFd, int_vector<>& minDistsRev, 
+        uint64_t currComponent, bool onlyCycles                       ){
+
+    / *Assign nodes to a component
+     *If onlyCycles, assign all nodes to a component of connected cycles 
+               if in a cycle, 0 otherwise
+      If not onlyCycles, assign all unassigned nodes to a connected component
+
+      Returns the maximum component number, the number of connected components
+    * /
+
+    int64_t minNodeID = distIndex->minNodeID;
+    HandleGraph* graph = distIndex->graph;
+    int64_t maxNodeID = distIndex->maxNodeID;
+    hash_set<pair<id_t, bool>> seen;
+
+    //Nodes that are part of linear component but point into a cyclic component
+    hash_map<pair<id_t, bool>, uint64_t> boundaryNodesComp;
+    hash_map<uint64_t, pair<id_t, bool>> boundaryNodes;
+    hash_set<pair<id_t, bool>> tips;//Tips of the graph pointing in
+    vector<id_t, bool> totalOrder; //Ordering of all nodes 
+
+    auto findComp = [&](const handle_t& h)-> bool { 
+        id_t i = graph->get_id(h);
+
+        if (nodeToComponent[i - minNodeID] == 0) {
+
+
+            bool loops = distIndex->loopDistance(make_pair(i, false), 
+                                                 make_pair(i, false)) > -1;
+            if (onlyCycles == loops)  {
+            //If this node hasn't been seen before and if only counting cycles,
+
+                currComponent++;
+                //Next nodes to look at; going forward at the end, remove from end 
+                list<pair<pair<id_t, bool>, bool>> nextNodes;
+            
+                //Arbitrarily assign direction for DAG
+                nextNodes.push_back(make_pair(make_pair(i, true), true));
+                nextNodes.push_back(make_pair(make_pair(i, false), false));
+                unordered_set<pair<id_t, bool>> sinkNodes;//Sink nodes of DAG
+                unordered_set<pair<id_t, bool>> sourceNodes;//Source
+                pair<id_t, bool> currNode; 
+
+    
+                while (nextNodes.size() > 0) {
+                    //For each reachable node
+ 
+                    //Traverse going forward first          
+                    pair<pair<id_t, bool>, bool> next =  nextNodes.back();
+                    nextNodes.pop_back();
+
+                    currNode = next.first;
+                    bool forward = next.second;
+
+                    if (seen.count(currNode) == 0) {
+                        //That hasn't been seen before
+                    
+                        seen.insert(currNode);
+                        bool added = false;
+
+                        auto addNextNodes = [&](const handle_t& h)-> bool {
+                            //Helper fn to get adjacent nodes
+
+                            pair<id_t, bool> node = make_pair(
+                            graph->get_id(h), graph->get_is_reverse(h));
+                            int64_t edgeLoop = distIndex->loopDistance(
+                                                           currNode, node) > -1;
+                            int64_t nodeLoop = distIndex->loopDistance(
+                                                               node, node) > -1;
+ 
+                            if ( 
+                                 ((onlyCycles && edgeLoop && nodeLoop) || 
+                                  (!onlyCycles && !edgeLoop && !nodeLoop)) ){
+                                //Add nodes whose edges are in loops
+
+                                added = true;
+                            if (seen.count(node) == 0 ) {
+                                if (forward) {
+                                    nextNodes.push_back(make_pair(node, 
+                                                                  forward));
+                                } else {
+                                    nextNodes.push_front(make_pair(node, 
+                                                                   forward));
+                                }
+
+                                if (seen.count(make_pair(node.first, 
+                                                         !node.second))
+                                    == 0) { 
+                                    if (forward) {
+                                        nextNodes.push_front(make_pair(
+                                          make_pair( node.first, !node.second), 
+                                                                    !forward));
+                                    } else {
+                                        nextNodes.push_back(make_pair(
+                                           make_pair( node.first, !node.second),
+                                                                     !forward));
+                                    }
+                                }
+                                }
+                            }
+                            return true;
+                        };
+
+
+                        nodeToComponent[currNode.first-minNodeID] = currComponent;
+
+
+                        handle_t handle =graph->get_handle(currNode.first, 
+                                                       currNode.second);
+ 
+                        //Add nodes that are connected by edges in loops
+                        graph->follow_edges(handle, false, addNextNodes);
+
+                        if (!added && forward) {
+                            //If there were no outgoing edges and this was a sink
+                            sinkNodes.insert(currNode);
+                        } else if (!added && !forward) {
+                            //If there were no outgoing edges and this was a sink
+                            sourceNodes.insert(currNode);
+                        }
+                     
+                    }
+                }
+                //Found all nodes in current component 
+                if (!onlyCycles) {
+                    if (sinkNodes.size() == 0) {
+                        calculateMaxDistances(sourceNodes, nodeToComponent, 
+                                             maxDists, minDistsFd, minDistsRev);
+                    } else {
+                        calculateMaxDistances(sinkNodes, nodeToComponent, 
+                                             maxDists, minDistsFd, minDistsRev);
+                    }
+                }
+            }
+        }
+        return true;
+    };
+
+    graph->for_each_handle(findComp);
+    return totalOrder;
+}
+*/
+vector<handle_t> DistanceIndex::MaxDistanceIndex::cpp_order(
+                            hash_set<pair<id_t, bool>> nodes,
+                            pair<id_t, bool> startNode) {
+    /* Create an ordering of nodes. All nodes are in a cyclic connected
+     * component, the order is a solution to the chinese postman problem 
+     * - a path that traverses all edges in the node-induced graph at least 
+     * once and tries to repeat edges as few times as possible.  
+     * Instead of repeating paths that have as few edges as possible,
+     * find paths that are as short as possible
+    */
+
+ 
+    HandleGraph* vg = distIndex->graph;
+    vector<handle_t> order; 
+    
+    //Map each edge to the number of times it has been used
+    hash_map<pair<pair<id_t, bool>, pair<id_t, bool>>, int64_t> usedEdges;
+
+    //Map each node/direction to the number of incoming and outgoing edges 
+    //remaining to be used
+    hash_map<pair<id_t, bool>, pair<int64_t, int64_t>> remainingEdges;
+
+
+    //// For each node, find how many incoming and outgoing edges 
+    //Unbalanced nodes - fewer incoming or outgoing edges
+    vector<pair<id_t, bool>> fewerIncoming;
+    vector<pair<id_t, bool>> fewerOutgoing;
+    hash_set<pair<id_t, bool>> seen;
+    vector<pair<id_t, bool>> next_nodes;
+    next_nodes.push_back(startNode);
+    while (next_nodes.size() != 0){
+        //DFS to get edge count for all nodes
+        pair<id_t, bool> currNode = next_nodes.back();
+        next_nodes.pop_back();
+        handle_t currHandle = vg->get_handle(currNode.first, currNode.second); 
+        
+        int64_t outCount = 0;
+        auto handleFd = [&](const handle_t& h)-> bool {
+            pair<id_t, bool> nextNode = make_pair( vg->get_id(h), 
+                                                   vg->get_is_reverse(h));
+            if (distIndex->loopDistance(nextNode, currNode) > -1) {
+                if (seen.count(nextNode) == 0) {
+                    next_nodes.push_back(nextNode);
+                }
+                outCount ++;
+            }
+            return true;
+        };
+        vg->follow_edges(currHandle, false, handleFd);
+
+        int64_t inCount = 0;
+        auto handleRev = [&](const handle_t& h)-> bool {
+            pair<id_t, bool> prevNode = make_pair( vg->get_id(h),
+                                                   vg->get_is_reverse(h));
+            if (distIndex->loopDistance(currNode, prevNode) > -1) {
+                inCount ++;
+            }
+            return true;
+        };
+
+        vg->follow_edges(currHandle, true, handleRev);
+ 
+        seen.insert(currNode);
+        if (outCount < inCount) {
+            //If there are fewer outgoing edges
+            for (size_t i = 0; i < inCount-outCount; i++) {
+                fewerOutgoing.push_back(currNode);
+            }
+        } else if (inCount < outCount) {
+            for (size_t i = 0; i < outCount-inCount; i++) {
+                fewerIncoming.push_back(currNode);
+            }
+        }
+    }
+    
+    assert(fewerOutgoing.size() == fewerIncoming.size());//TODO 
+    ///// match nodes with too many outgoing/incoming edges
+
+    //Matrix of distances between nodes
+    vector<vector<int64_t>> minDistances;
+    for (size_t i = 0; i < fewerOutgoing.size(); i++){
+        vector<int64_t> row;
+        pair<id_t, bool> node1 = fewerOutgoing[i];
+        pos_t pos1 = make_pos_t(node1.first, node1.second, 0);
+        for (size_t j = 0; j < fewerIncoming.size(); j++){
+            pair<id_t, bool> node2 = fewerIncoming[j];
+            pos_t pos2 = make_pos_t(node2.first, node2.second, 0);
+            row.push_back(distIndex->minDistance(pos1, pos2));
+        }
+        minDistances.push_back(row);
+    }
+
+    //Hungarian Algorithm to pair nodes with too many incoming/outgoing edges
+
+    vector<int64_t> columnMins(minDistances.size(), INT_MAX);//Min of each col
+    //Subtract minimum value of each row
+    for (size_t i = 0; i < minDistances.size(); i++) {
+        vector<int64_t> row = minDistances[i];
+        int64_t rowMin = *(min_element(begin(row), end(row)));
+        for (size_t j = 0; j < minDistances[0].size(); j++) {
+            minDistances[i][j] = minDistances[i][j] - rowMin;
+            columnMins[j] = min(columnMins[j], minDistances[i][j]);
+        }
+    } 
+
+    //Subtract minimum value of each column
+    for (size_t j = 0; j < minDistances[0].size(); j++) {
+        int64_t colMin = columnMins[j]; 
+        for (size_t i = 0; i < minDistances.size(); i++) {
+            minDistances[i][j] = minDistances[i][j] - colMin;
+        }
+    }
+
+    auto coverMatrix = [] (vector<vector<int64_t>>& matrix) {
+        //Cover 0s in the matrix with as few rows/cols as possible
+        hash_set<size_t> unassignedRows;//Will be marked columns 
+        for (size_t i=0 ; i< matrix.size() ; i++) {unassignedRows.insert(i);}
+        hash_set<size_t> assignedCols;
+        hash_map<size_t, hash_set<size_t>> colZeros;
+        for (size_t i = 0; i < matrix.size(); i++) {
+            bool isAssignedR = false;
+            for (size_t j = 0; j < matrix[0].size(); j++) {
+                if (!isAssignedR && assignedCols.count(j) == 0 && 
+                                                            matrix[i][j] == 0) {
+                    //If this row and col hasn't already been assigned and it's 0
+                    //Assign this i and j 
+                    isAssignedR = true;
+                    assignedCols.insert(j);
+                    unassignedRows.erase(i);
+                }
+                if (matrix[i][j] == 0) {
+                    //Any 0 
+                    if (colZeros.count(j) != 0) {
+                        colZeros[j].insert(i);
+                    } else {
+                        hash_set<size_t> x;
+                        x.insert(i);
+                        colZeros.emplace(j,x);
+                    }
+                }
+            }    
+        }
+        //Find all marked columns
+        hash_set<size_t> markedCols;
+        for (size_t j = 0; j < matrix[0].size(); j++) {
+            if (colZeros.count(j) != 0) {
+                for (size_t i : colZeros[j]){ 
+                    if (unassignedRows.count(i) != 0) {
+                        //This column gets assigned
+                        markedCols.insert(j);
+                    }
+                }
+            }
+        }
+        return make_pair(unassignedRows, markedCols);
+    };
+
+    //Min number of lines to cover all 0s
+    auto assignments = coverMatrix(minDistances);
+    hash_set<size_t> markedRows = assignments.first;
+    hash_set<size_t> markedCols = assignments.second;
+
+    while (markedRows.size() + markedCols.size() < minDistances.size()) {
+        //Shift 0s to get assignment
+        
+        //Find minimum unmarked value
+        int64_t minUnmarked = INT_MAX; 
+        for (size_t i = 0; i < minDistances.size(); i++) {
+            for (size_t j = 0; j < minDistances.size(); j++) {
+                if (markedRows.count(i) == 0 &&
+                    markedCols.count(j) == 0) {
+                        minUnmarked = min(minUnmarked, minDistances[i][j]); 
+                }
+            }
+        }
+        for (size_t i = 0; i < minDistances.size(); i++) {
+            for (size_t j = 0; j < minDistances.size(); j++) {
+                if (markedRows.count(i) == 0 &&
+                    markedCols.count(j) == 0) {
+                    //Add to unmarked
+                        minDistances[i][j] = minDistances[i][j] + minUnmarked; 
+                } else {
+                    //subtract from marked
+                    minDistances[i][j] = minDistances[i][j] - minUnmarked; 
+ 
+                }
+            }
+        }
+        assignments = coverMatrix(minDistances);
+        markedRows = assignments.first;
+        markedCols = assignments.second;
+    }
+
+    //There is now at least one assignment (represented by 0s) in minDistances 
+    hash_map<pair<id_t, bool>, pair<id_t, bool>> assignment;
+    hash_set<size_t> usedCols;
+    for (size_t i = 0; i < minDistances.size(); i++) {
+        for (size_t j = 0; j < minDistances.size(); j++) {
+            pair<id_t, bool> startNode = fewerOutgoing[i];
+            pair<id_t, bool> endNode = fewerIncoming[j];
+            if (assignment.count(startNode) == 0 && usedCols.count(j) == 0 && 
+                                                      minDistances[i][j] == 0) {
+                assignment[startNode] = endNode;
+                usedCols.insert(j);  
+            }
+        }
+    }
+
+    //Find eularian path that repeats shortest path between assigned nodes
+    //TODO
+    return order;
+
+}
+
+
+
+//////////////////////////// Overall Distance index methods
+
 
 int64_t DistanceIndex::loopDistance(
                  pair<id_t, bool> node1, pair<id_t, bool> node2) {
@@ -3581,6 +3942,7 @@ pair<int64_t, int64_t> DistanceIndex::sizeOf() {
     
 
 }
+
 
 
 int64_t DistanceIndex::checkChainDist(id_t snarl, size_t index) {
