@@ -281,19 +281,23 @@ int main_giraffe(int argc, char** argv) {
  
     minimizer_mapper.use_xdrop_for_tails = use_xdrop_for_tails;
 
+    size_t x = 0;
     // How many clusters should we extend?
-    for (size_t max_extensions : { 8, 16, 32, 48, 64})  {
+    for (size_t max_extensions : {16, 32, 48, 64})  {
         // How many extended clusters should we align, max?
-        for (size_t max_alignments : { 4, 8, 16, 24, 32}) {
+        for (size_t max_alignments : { 4, 16, 24, 32}) {
             //Throw away cluster with scores that are this amount below the best
-            for (double cluster_score : {5, 10, 15, 25, 50, 75, 0} ){
+            for (double cluster_score : {10, 25, 50, 75, 0} ){
                 //Throw away clusters with coverage this amount below the best 
-                for (double cluster_coverage : {0.1, 0.2, 0.3, 0.4, 0.5, 0.0} ) {
+                for (double cluster_coverage : {0.1, 0.3, 0.5, 0.0} ) {
                     //Throw away extensions with scores that are this amount below the best
-                    for (double extension_score : {5, 10, 15, 25, 50, 70, 0}) {
-                        for (size_t hit_cap : {5, 10, 20, 100}) {
-                            for (size_t hard_hit_cap : {100, 200, 300, 400, 500}) {
-                                for (double minimizer_score_fraction : {0.3, 0.5, 0.6, 0.7 }){
+                    for (double extension_score : {10, 25, 50, 70, 0}) {
+                        for (size_t hit_cap : { 100}) {
+                            for (size_t hard_hit_cap : {300}) {
+                                for (double minimizer_score_fraction : {0.6}){
+                                    if (progress) {
+                                        cerr << "Aligning " << x << "of 1600" << endl;
+                                    }
                                     out << max_extensions << "\t" << max_alignments << "\t" << cluster_score << "\t" 
                                          << cluster_coverage << "\t" << extension_score << "\t" << hit_cap << "\t"
                                          << hard_hit_cap << "\t" << minimizer_score_fraction;
