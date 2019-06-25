@@ -264,6 +264,10 @@ int main_giraffe(int argc, char** argv) {
     //unique_ptr<MinimumDistanceIndex> distance_index = vg::io::VPKG::load_one<MinimumDistanceIndex>(distance_name);
     
 
+    //File to write the times to
+    ofstream out ("mapping times");
+    out << "max_extensions\tmax_alignments\tcluster_score_threshold\tcluster_coverage_threshold\textension_score_threshold\thit_cap\thard_hit_cap\tminimizer_score_fraction\truntime(reads/thread/second)\tcorrect" << endl;
+
     // Set up the mapper
     if (progress) {
         cerr << "Initializing MinimizerMapper" << endl;
@@ -290,7 +294,7 @@ int main_giraffe(int argc, char** argv) {
                         for (size_t hit_cap : {5, 10, 20, 100}) {
                             for (size_t hard_hit_cap : {100, 200, 300, 400, 500}) {
                                 for (double minimizer_score_fraction : {0.3, 0.5, 0.6, 0.7 }){
-                                    cout << max_extensions << "\t" << max_alignments << "\t" << cluster_score << "\t" 
+                                    out << max_extensions << "\t" << max_alignments << "\t" << cluster_score << "\t" 
                                          << cluster_coverage << "\t" << extension_score << "\t" << hit_cap << "\t"
                                          << hard_hit_cap << "\t" << minimizer_score_fraction;
 
@@ -376,7 +380,7 @@ int main_giraffe(int argc, char** argv) {
                                             total_reads_mapped += reads_mapped;
                                         }
                                         
-                                        cout  << "\t" << ((total_reads_mapped / elapsed_seconds.count()) / thread_count);
+                                        out  << "\t" << ((total_reads_mapped / elapsed_seconds.count()) / thread_count);
                                     }
                                     //Map the simulated reads to get accuracy
                                     size_t correct_count = 0;
@@ -420,7 +424,7 @@ int main_giraffe(int argc, char** argv) {
                                         
                                         } // Make sure alignment emitter is destroyed and all alignments are on disk.
                                     }
-                                    cout << "\t" << correct_count << endl;
+                                    out << "\t" << correct_count << endl;
                                 }
                             }
                         }
@@ -429,6 +433,7 @@ int main_giraffe(int argc, char** argv) {
             }
         }
     }
+    out.close();
         
     return 0;
 }
