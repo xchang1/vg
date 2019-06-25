@@ -388,7 +388,8 @@ int main_giraffe(int argc, char** argv) {
                                     }
                                     //Map the simulated reads to get accuracy
                                     size_t correct_count = 0;
-                                    for (size_t thread_count_current : 0) {
+                                    threads_to_run[0] = 0;
+                                    for (size_t thread_count_current : threads_to_run) {
                                     
                                         if (thread_count_current != 0) {
                                             omp_set_num_threads(thread_count_current);
