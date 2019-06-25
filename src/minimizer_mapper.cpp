@@ -32,7 +32,7 @@ MinimizerMapper::MinimizerMapper(const XG* xg_index, const gbwt::GBWT* gbwt_inde
     // Nothing to do!
 }
 
-void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
+bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     // For each input alignment
 
     // Make a new funnel instrumenter to watch us map this read.
@@ -289,10 +289,10 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     
     size_t num_extensions = 0;
     for (size_t i = 0; i < clusters.size() && num_extensions < max_extensions &&
-                 read_coverage_by_cluster[cluster_indexes_in_order[i]] > cluster_coverage_cutoff; i++) {
+                 (cluster_coverage_threshold == 0 || read_coverage_by_cluster[cluster_indexes_in_order[i]]) > cluster_coverage_cutoff; i++) {
         // For each cluster, in sorted order
         size_t& cluster_num = cluster_indexes_in_order[i];
-        if (cluster_score[cluster_num] < cluster_score_cutoff) {
+        if (cluster_score_threshold != 0 && cluster_score[cluster_num] < cluster_score_cutoff) {
             continue;
         }
         num_extensions ++;
@@ -396,7 +396,7 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     int best_score = 0;
     int second_best_score = 0;
     for (size_t i = 0; i < extension_indexes_in_order.size() && i < max_alignments && 
-                        cluster_extension_scores[extension_indexes_in_order[i]] > extension_score_cutoff; i++) {
+                        (extension_score_cutoff == 0 || cluster_extension_scores[extension_indexes_in_order[i]] > extension_score_cutoff); i++) {
         // Find the extension group we are talking about
         size_t& extension_num = extension_indexes_in_order[i];
         
@@ -594,6 +594,10 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     
     // Ship out all the aligned alignments
     alignment_emitter.emit_mapped_single(std::move(mappings));
+    //TODO: Remove these
+    alignment_set_distance_to_correct(mappings[0], aln);
+    return mappings[0].to_correct().offset() <= 100;
+
 
 #ifdef debug
     // Dump the funnel info graph.
