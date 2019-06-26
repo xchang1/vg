@@ -35,6 +35,7 @@ MinimizerMapper::MinimizerMapper(XG* xg_index, const gbwt::GBWT* gbwt_index, con
 
 bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     // For each input alignment
+    Alignment aln_copy = aln;
 
     // Make a new funnel instrumenter to watch us map this read.
     Funnel funnel;
@@ -597,7 +598,7 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     Mapper mapper(xg_index, nullptr, nullptr);
     mappings[0].clear_refpos();
     mapper.annotate_with_initial_path_positions(mappings[0], 0);
-    alignment_set_distance_to_correct(mappings[0], aln);
+    alignment_set_distance_to_correct(mappings[0], aln_copy);
     bool correct = (mappings[0].to_correct().name() != "" && mappings[0].to_correct().offset() <= 100);
     // Ship out all the aligned alignments
     alignment_emitter.emit_mapped_single(std::move(mappings));
