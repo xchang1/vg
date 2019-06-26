@@ -265,7 +265,7 @@ int main_giraffe(int argc, char** argv) {
     
 
     //File to write the times to
-    ofstream out ("mapping times");
+    ofstream out ("mapping_times");
     out << "max_extensions\tmax_alignments\tcluster_score_threshold\tcluster_coverage_threshold\textension_score_threshold\thit_cap\thard_hit_cap\tminimizer_score_fraction\truntime(reads/thread/second)\tcorrect" << endl;
 
     // Set up the mapper
@@ -296,7 +296,7 @@ int main_giraffe(int argc, char** argv) {
                             for (size_t hard_hit_cap : {300}) {
                                 for (double minimizer_score_fraction : {0.6}){
                                     if (progress) {
-                                        cerr << "Aligning " << x << "of 1600" << endl;
+                                        cerr << "Aligning " << x++ << "of 1600" << endl;
                                     }
                                     out << max_extensions << "\t" << max_alignments << "\t" << cluster_score << "\t" 
                                          << cluster_coverage << "\t" << extension_score << "\t" << hit_cap << "\t"

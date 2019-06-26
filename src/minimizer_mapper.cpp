@@ -396,7 +396,7 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     int best_score = 0;
     int second_best_score = 0;
     for (size_t i = 0; i < extension_indexes_in_order.size() && i < max_alignments && 
-                        (extension_score_cutoff == 0 || cluster_extension_scores[extension_indexes_in_order[i]] > extension_score_cutoff); i++) {
+                        (extension_score_threshold == 0 || cluster_extension_scores[extension_indexes_in_order[i]] > extension_score_cutoff); i++) {
         // Find the extension group we are talking about
         size_t& extension_num = extension_indexes_in_order[i];
         
