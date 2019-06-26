@@ -593,14 +593,15 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
 #endif
 #endif
     
-    // Ship out all the aligned alignments
-    alignment_emitter.emit_mapped_single(std::move(mappings));
     //TODO: Remove these
     Mapper mapper(xg_index, nullptr, nullptr);
     mappings[0].clear_refpos();
     mapper.annotate_with_initial_path_positions(mappings[0], 0);
     alignment_set_distance_to_correct(mappings[0], aln);
-    return mappings[0].to_correct().offset() <= 100;
+    bool correct = (mappings[0].to_correct().name != "" && mappings[0].to_correct().offset() <= 100);
+    // Ship out all the aligned alignments
+    alignment_emitter.emit_mapped_single(std::move(mappings));
+    return correct;
 
 
 #ifdef debug
