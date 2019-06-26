@@ -28,7 +28,7 @@ public:
      * Construct a new MinimizerMapper using the given indexes.
      */
 
-    MinimizerMapper(const XG* xg_index, const gbwt::GBWT* gbwt_index, const MinimizerIndex* minimizer_index,
+    MinimizerMapper(XG* xg_index, const gbwt::GBWT* gbwt_index, const MinimizerIndex* minimizer_index,
          MinimumDistanceIndex* distance_index);
 
     /**
@@ -78,7 +78,7 @@ public:
 
 protected:
     // These are our indexes
-    const XG* xg_index;
+    XG* xg_index;
     const gbwt::GBWT* gbwt_index;
     const MinimizerIndex* minimizer_index;
     MinimumDistanceIndex* distance_index;

@@ -8,6 +8,7 @@
 #include "path_subgraph.hpp"
 #include "multipath_alignment.hpp"
 #include "funnel.hpp"
+#include"../mapper.hpp"
 
 #include <iostream>
 #include <algorithm>
@@ -23,7 +24,7 @@ namespace vg {
 using namespace std;
 
 
-MinimizerMapper::MinimizerMapper(const XG* xg_index, const gbwt::GBWT* gbwt_index, const MinimizerIndex* minimizer_index,
+MinimizerMapper::MinimizerMapper(XG* xg_index, const gbwt::GBWT* gbwt_index, const MinimizerIndex* minimizer_index,
      MinimumDistanceIndex* distance_index) :
     xg_index(xg_index), gbwt_index(gbwt_index), minimizer_index(minimizer_index),
     distance_index(distance_index), gbwt_graph(*gbwt_index, *xg_index),
@@ -595,6 +596,9 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     // Ship out all the aligned alignments
     alignment_emitter.emit_mapped_single(std::move(mappings));
     //TODO: Remove these
+    Mapper mapper(xg_index, nullptr, nullptr);
+    mappings[0].clear_refpos();
+    mapper.annotate_with_initial_path_positions(mappings[0], 0);
     alignment_set_distance_to_correct(mappings[0], aln);
     return mappings[0].to_correct().offset() <= 100;
 
