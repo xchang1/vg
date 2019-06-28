@@ -413,8 +413,8 @@ int main_giraffe(int argc, char** argv) {
 #ifdef USE_CALLGRIND
                                                 // We want to profile the alignment, not the loading.
                                                 CALLGRIND_START_INSTRUMENTATION;
-                                                start = std::chrono::system_clock::now();
 #endif
+                                                start = std::chrono::system_clock::now();
 
                                                 // Define how to align and output a read, in a thread.
                                                 auto map_read = [&](Alignment& aln) {
