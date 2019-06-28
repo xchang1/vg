@@ -287,13 +287,13 @@ int main_giraffe(int argc, char** argv) {
         // How many extended clusters should we align, max?
         for (size_t max_alignments : { 8}) {
             //Throw away cluster with scores that are this amount below the best
-            for (double cluster_score : {10, 25, 75, 0} ){
+            for (double cluster_score : {25, 75, 100, 0} ){
                 //Throw away clusters with coverage this amount below the best 
-                for (double cluster_coverage : {0.1, 0.3, 0.5, 0.0} ) {
+                for (double cluster_coverage : {0.1, 0.3, 0.5} ) {
                     //Throw away extensions with scores that are this amount below the best
-                    for (double extension_score : {5, 20, 70, 0}) {
-                        for (size_t hit_cap : { 100}) {
-                            for (size_t hard_hit_cap : {300}) {
+                    for (double extension_score : {5, 20, 70}) {
+                        for (size_t hit_cap : { 10}) {
+                            for (size_t hard_hit_cap : {300, 600}) {
                                 for (double minimizer_score_fraction : {0.6}){
                                     if (progress) {
                                         cerr << "Aligning " << x++ << " of 80" << endl;

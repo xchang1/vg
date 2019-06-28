@@ -287,11 +287,9 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     cluster_extensions.reserve(cluster_indexes_in_order.size());
 
 
-
-    
     size_t num_extensions = 0;
     for (size_t i = 0; i < clusters.size() && num_extensions < max_extensions &&
-                 (cluster_coverage_threshold == 0 || read_coverage_by_cluster[cluster_indexes_in_order[i]]) > cluster_coverage_cutoff; i++) {
+                 (cluster_coverage_threshold == 0 || read_coverage_by_cluster[cluster_indexes_in_order[i]] > cluster_coverage_cutoff); i++) {
         // For each cluster, in sorted order
         size_t& cluster_num = cluster_indexes_in_order[i];
         if (cluster_score_threshold != 0 && cluster_score[cluster_num] < cluster_score_cutoff) {
