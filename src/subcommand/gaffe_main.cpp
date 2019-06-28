@@ -101,7 +101,7 @@ int main_gaffe(int argc, char** argv) {
     //Throw away clusters with coverage this amount below the best 
     double cluster_coverage = 0.3;
     //Throw away extensions with scores that are this amount below the best
-    double extension_score = 50;
+    double extension_set = 50;
     // What sample name if any should we apply?
     string sample_name;
     // What read group if any should we apply?
@@ -289,7 +289,7 @@ int main_gaffe(int argc, char** argv) {
                         cerr << "error: [vg gaffe] Extension score threshold (" << score << ") must be positive" << endl;
                         exit(1);
                     }
-                    extension_score = score;
+                    extension_set = score;
                 }
                 break;
             case 'O':
@@ -410,9 +410,9 @@ int main_gaffe(int argc, char** argv) {
     minimizer_mapper.cluster_coverage_threshold = cluster_coverage;
 
     if (progress) {
-        cerr << "--extension_score " << extension_score << endl;
+        cerr << "--extension_set " << extension_set << endl;
     }
-    minimizer_mapper.extension_score_threshold = extension_score;
+    minimizer_mapper.extension_set_threshold = extension_set;
 
     if (progress) {
         cerr << "--no-chaining " << (!do_chaining) << endl;

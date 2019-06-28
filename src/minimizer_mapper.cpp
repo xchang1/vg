@@ -318,9 +318,20 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
                 << " from minimizer " << seed_to_source[seed_index] << "(" << minimizer_index->count(minimizers[seed_to_source[seed_index]]) << ")" << endl;
 #endif
         }
-        
+        vector<GaplessExtension> extensions = extender.extend(seed_matchings, aln.sequence());
+        vector<GaplessExtension> filtered_extensions;
+        size_t best_extension_score = 0;
+        for (GaplessExtension& extension: extensions) {
+            best_extension_score = max(best_extension_score, extension.core_length());
+        }
+        for (GaplessExtension& extension: extensions) {
+            if (extension.core_length() > best_extension_score - extension_score_threshold) {
+                filtered_extensions.push_back(std::move(extension));
+            }
+        }
+
         // Extend seed hits in the cluster into one or more gapless extensions
-        cluster_extensions.emplace_back(extender.extend(seed_matchings, aln.sequence()));
+        cluster_extensions.emplace_back(std::move(filtered_extensions));
         
 #ifdef TRACK_PROVENANCE
         // Record with the funnel that the previous group became a group of this size.
@@ -372,7 +383,7 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
 
     double extension_score_cutoff = cluster_extension_scores.size() == 0 ? 0 :
                               cluster_extension_scores[extension_indexes_in_order[0]]
-                                    - extension_score_threshold;
+                                    - extension_set_threshold;
     
 #ifdef TRACK_PROVENANCE
     funnel.stage("align");
@@ -397,7 +408,7 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     int best_score = 0;
     int second_best_score = 0;
     for (size_t i = 0; i < extension_indexes_in_order.size() && i < max_alignments && 
-                        (extension_score_threshold == 0 || cluster_extension_scores[extension_indexes_in_order[i]] > extension_score_cutoff); i++) {
+                        (extension_set_threshold == 0 || cluster_extension_scores[extension_indexes_in_order[i]] > extension_score_cutoff); i++) {
         // Find the extension group we are talking about
         size_t& extension_num = extension_indexes_in_order[i];
         
@@ -610,7 +621,7 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
 #endif
 }
 
-int MinimizerMapper::estimate_extension_group_score(const Alignment& aln, vector<GaplessExtension>& extended_seeds) const {
+int MinimizerMapper::estimate_extension_group_score(const Alignment& aln, const vector<GaplessExtension>& extended_seeds) const {
     if (extended_seeds.empty()) {
         // TODO: We should never see an empty group of extensions
         return 0;

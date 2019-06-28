@@ -64,9 +64,13 @@ public:
     //by more than this much, don't extend it
     double cluster_coverage_threshold = 0.3;
 
+    //If an extension set's score is smaller than the best extension 
+    //set's score by more than this much, don't align it
+    double extension_set_threshold = 50;
+
     //If an extension's score is smaller than the best extension's score by
     //more than this much, don't align it
-    double extension_score_threshold = 50;
+    size_t extension_score_threshold = 50;
 
     size_t max_multimaps = 1;
     size_t distance_limit = 1000;
@@ -98,7 +102,7 @@ protected:
      * May reorder the input extended_seeds vector if it is not sorted in read space.
      * Is not always an overestimate of the actual score.
      */
-    int estimate_extension_group_score(const Alignment& aln, vector<GaplessExtension>& extended_seeds) const;
+    int estimate_extension_group_score(const Alignment& aln, const vector<GaplessExtension>& extended_seeds) const;
     
     /**
      * Determine if a score estimate is significant enough to justify computing the real Alignment.
