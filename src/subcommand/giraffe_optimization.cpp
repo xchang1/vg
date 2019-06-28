@@ -295,7 +295,7 @@ int main_giraffe(int argc, char** argv) {
                         for (size_t hit_cap : { 10}) {
                             for (size_t hard_hit_cap : {300, 600}) {
                                 for (double minimizer_score_fraction : {0.6}){
-                                    for (size_t extension_score : {25, 50, 100}) {
+                                    for (int extension_score : {25, 50, 100}) {
 
                                         if (progress) {
                                             cerr << "Aligning " << x++ << " of 80" << endl;

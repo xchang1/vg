@@ -320,12 +320,12 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
         }
         vector<GaplessExtension> extensions = extender.extend(seed_matchings, aln.sequence());
         vector<GaplessExtension> filtered_extensions;
-        size_t best_extension_score = 0;
+        int best_extension_score = 0;
         for (GaplessExtension& extension: extensions) {
-            best_extension_score = max(best_extension_score, extension.core_length());
+            best_extension_score = max(best_extension_score, (int)extension.core_length());
         }
         for (GaplessExtension& extension: extensions) {
-            if (extension.core_length() > best_extension_score - extension_score_threshold) {
+            if ((int)extension.core_length() > best_extension_score - extension_score_threshold) {
                 filtered_extensions.push_back(std::move(extension));
             }
         }

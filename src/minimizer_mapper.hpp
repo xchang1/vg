@@ -70,7 +70,7 @@ public:
 
     //If an extension's score is smaller than the best extension's score by
     //more than this much, don't align it
-    size_t extension_score_threshold = 50;
+    int extension_score_threshold = 50;
 
     size_t max_multimaps = 1;
     size_t distance_limit = 1000;
