@@ -266,7 +266,7 @@ int main_giraffe(int argc, char** argv) {
 
     //File to write the times to
     ofstream out ("mapping_times");
-    out << "max_extensions\tmax_alignments\tcluster_score_threshold\tcluster_coverage_threshold\textension_set_threshold\thit_cap\thard_hit_cap\tminimizer_score_fraction\truntime(real)\truntime(sim)\tcorrect" << endl;
+    out << "max_extensions\tmax_alignments\tcluster_score_threshold\tcluster_coverage_threshold\textension_set_threshold\thit_cap\thard_hit_cap\tminimizer_score_fraction\textension_score_threshold\truntime(real)\truntime(sim)\tcorrect" << endl;
 
     // Set up the mapper
     if (progress) {
@@ -302,7 +302,7 @@ int main_giraffe(int argc, char** argv) {
                                         }
                                         out << max_extensions << "\t" << max_alignments << "\t" << cluster_score << "\t" 
                                              << cluster_coverage << "\t" << extension_set << "\t" << hit_cap << "\t"
-                                             << hard_hit_cap << "\t" << minimizer_score_fraction;
+                                             << hard_hit_cap << "\t" << minimizer_score_fraction << "\t" << extension_score;
 
                                         minimizer_mapper.hit_cap = hit_cap;
 
