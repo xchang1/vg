@@ -35,7 +35,8 @@ public:
      * Map the given read, and send output to the given AlignmentEmitter. May be run from any thread.
      * TODO: Can't be const because the clusterer's cluster_seeds isn't const.
      */
-    bool map(Alignment& aln, AlignmentEmitter& alignment_emitter);
+    tuple<bool, size_t, size_t, size_t, size_t, size_t, size_t, size_t, size_t, size_t, size_t> map(Alignment& aln, AlignmentEmitter& alignment_emitter, 
+                       bool track = false);
 
     // Mapping settings.
     // TODO: document each

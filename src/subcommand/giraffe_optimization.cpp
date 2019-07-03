@@ -266,7 +266,11 @@ int main_giraffe(int argc, char** argv) {
 
     //File to write the times to
     ofstream out ("mapping_times");
-    out << "max_extensions\tmax_alignments\tcluster_score_threshold\tcluster_coverage_threshold\textension_set_threshold\thit_cap\thard_hit_cap\tminimizer_score_fraction\textension_score_threshold\truntime(real)\truntime(sim)\tcorrect" << endl;
+    out << "max_extensions\tmax_alignments\tcluster_score_threshold\tcluster_coverage_threshold\t"
+         << "extension_set_threshold\thit_cap\thard_hit_cap\tminimizer_score_fraction\textension_score_threshold"
+         <<"\tspeed(real)\tspeed(sim)\tcorrect" 
+         << "\tclusters\tclusters_filtered\tcorrect_clusters_filtered\textensions\textensions_filtered\tcorrect_extensions_filtered"
+         <<"\textension_sets\textension_sets_filtered\tcorrect_extension_sets_filtered"<< endl;
 
     // Set up the mapper
     if (progress) {
@@ -300,6 +304,16 @@ int main_giraffe(int argc, char** argv) {
                                         if (progress) {
                                             cerr << "Aligning " << x++ << " of 80" << endl;
                                         }
+                                        float total_num_clusters = 0;
+                                        float total_num_clusters_trashed = 0;
+                                        float total_num_correct_clusters_trashed = 0;
+                                        float total_num_extensions = 0;
+                                        float total_num_extensions_trashed = 0;
+                                        float total_num_correct_extensions_trashed = 0;
+                                        float total_num_extension_sets = 0;
+                                        float total_num_extension_sets_trashed = 0;
+                                        float total_num_correct_extension_sets_trashed = 0;
+
                                         out << max_extensions << "\t" << max_alignments << "\t" << cluster_score << "\t" 
                                              << cluster_coverage << "\t" << extension_set << "\t" << hit_cap << "\t"
                                              << hard_hit_cap << "\t" << minimizer_score_fraction << "\t" << extension_score;
@@ -419,10 +433,20 @@ int main_giraffe(int argc, char** argv) {
                                                 // Define how to align and output a read, in a thread.
                                                 auto map_read = [&](Alignment& aln) {
                                                     // Map the read with the MinimizerMapper.
-                                                    bool correct = minimizer_mapper.map(aln, *alignment_emitter);
-                                                    if (correct) {
+                                                    tuple<bool, size_t, size_t, size_t,size_t, size_t, 
+                                                            size_t, size_t, size_t, size_t, size_t > results= minimizer_mapper.map(aln, *alignment_emitter, true);
+                                                    if (get<0>(results)) {
                                                         correct_count ++;
                                                     }
+                                                    total_num_clusters += get<1>(results);
+                                                    total_num_clusters_trashed += get<2>(results);
+                                                    total_num_correct_clusters_trashed += get<3>(results);
+                                                    total_num_extensions += get<4>(results);
+                                                    total_num_extensions_trashed += get<5>(results);
+                                                    total_num_correct_extensions_trashed += get<6>(results);
+                                                    total_num_extension_sets += get<7>(results);
+                                                    total_num_extension_sets_trashed += get<8>(results);
+                                                    total_num_correct_extension_sets_trashed += get<9>(results);
                                                 };
                                                     
                                                 for (auto& gam_name : gam_filenames) {
@@ -441,7 +465,16 @@ int main_giraffe(int argc, char** argv) {
                                             
                                             out  << "\t" << ((200000 / elapsed_seconds.count()) / thread_count);
                                         }
-                                        out << "\t" << correct_count << endl;
+                                        out << "\t" << correct_count << "\t" 
+                                            << total_num_clusters / 200000.0 << "\t"
+                                            << total_num_clusters_trashed / 200000.0 << "\t"
+                                            << total_num_correct_clusters_trashed  / 200000.0 << "\t"
+                                            << total_num_extensions  / 200000.0 << "\t"
+                                            << total_num_extensions_trashed  / 200000.0 << "\t"
+                                            << total_num_correct_extensions_trashed  / 200000.0 << "\t"
+                                            << total_num_extension_sets  / 200000.0 << "\t"
+                                            << total_num_extension_sets_trashed  / 200000.0 << "\t"
+                                            << total_num_correct_extension_sets_trashed  / 200000.0 << endl;
                                     }
                                 }
                             }

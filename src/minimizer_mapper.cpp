@@ -15,9 +15,9 @@
 #include <cmath>
 
 // Set this to track provenance of intermediate results
-//#define TRACK_PROVENANCE
+#define TRACK_PROVENANCE
 // With TRACK_PROVENANCE on, set this to track correctness, which requires some expensive XG queries
-//#define TRACK_CORRECTNESS
+#define TRACK_CORRECTNESS
 
 namespace vg {
 
@@ -33,9 +33,20 @@ MinimizerMapper::MinimizerMapper(XG* xg_index, const gbwt::GBWT* gbwt_index, con
     // Nothing to do!
 }
 
-bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
+tuple<bool, size_t, size_t, size_t, size_t, size_t, size_t, size_t, size_t, size_t, size_t> MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter, bool track) {
+    //Return if the read is correct, # of clusters thrown away, # correct clusters thrown away, # individual extensions thrown away, # correct individual extensions thrown away, # extension sets thrown away, # correct extension sets thrown away, read identity 
+
+    bool correct = false;
+    size_t num_clusters = 0; //Number of clusters total
+    size_t num_corr_clusters = 0; //Number of correct clusters thrown away
+    size_t num_clusters_trashed = 0; //Number of clusters thrown away total
+    size_t num_extensions = 0;
+    size_t num_corr_extensions = 0;
+    size_t num_extensions_trashed = 0;
+    size_t num_extension_sets = 0;
+    size_t num_corr_extension_sets = 0;
+    size_t num_extension_sets_trashed = 0;
     // For each input alignment
-    Alignment aln_copy = aln;
 
     // Make a new funnel instrumenter to watch us map this read.
     Funnel funnel;
@@ -147,7 +158,26 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
 #endif
     }
 
+vector<bool> seed_correctness (seeds.size(), false);
+if (track) {
 
+    if (aln.refpos_size() != 0) {
+        // Take the first refpos as the true position.
+        auto& true_pos = aln.refpos(0);
+        
+        for (size_t i = 0; i < seeds.size(); i++) {
+            // Find every seed's reference positions. This maps from path name to pairs of offset and orientation.
+            auto offsets = xg_index->nearest_offsets_in_paths(seeds[i], 100);
+            for (auto& hit_pos : offsets[true_pos.name()]) {
+                // Look at all the ones on the path the read's true position is on.
+                if (abs((int64_t)hit_pos.first - (int64_t) true_pos.offset()) < 200) {
+                    // Call this seed hit close enough to be correct
+                    seed_correctness[i] = true;
+                }
+            }
+        }
+    }
+}
 #ifdef TRACK_PROVENANCE
 #ifdef TRACK_CORRECTNESS
     // Tag seeds with correctness based on proximity along paths to the input read's refpos
@@ -193,6 +223,7 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     std::vector<double> cluster_score(clusters.size(), 0.0);
     vector<double> read_coverage_by_cluster;
     read_coverage_by_cluster.reserve(clusters.size());
+    num_clusters = clusters.size();
 
     for (size_t i = 0; i < clusters.size(); i++) {
         // For each cluster
@@ -290,8 +321,23 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     vector<vector<GaplessExtension>> cluster_extensions;
     cluster_extensions.reserve(cluster_indexes_in_order.size());
 
-    size_t num_extensions = 0;
-    for (size_t i = 0; i < clusters.size() && num_extensions < max_extensions &&
+    vector<bool> cluster_correctness (clusters.size(), false);
+    size_t num_clusters_correct = 0;//How many of the clusters total are correct
+    if (track) {
+        for (size_t i = 0 ; i < clusters.size() ;i++) {
+            auto& cluster = clusters[i];
+            for (size_t& seed : cluster) {
+                if (seed_correctness[seed]) {
+                    cluster_correctness[i] = true;
+                    num_clusters_correct ++;
+                }
+            }
+        }
+    }
+
+    vector<bool> extension_correctness;
+    size_t num_extension_sets_correct = 0;
+    for (size_t i = 0; i < clusters.size() && num_extension_sets < max_extensions &&
                  (cluster_score_threshold == 0 || cluster_score[cluster_indexes_in_order[i]] > cluster_score_cutoff); i++) {
         // For each cluster, sorted by the cluster score
         size_t& cluster_num = cluster_indexes_in_order[i];
@@ -300,8 +346,12 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
             //If the cluster_coverage isn't good enough, ignore this cluster
             continue;
         }
-        num_extensions ++;
+        num_extension_sets ++;
         
+        extension_correctness.push_back(cluster_correctness[i]);
+        if (cluster_correctness[i]) {
+            num_extension_sets_correct ++;
+        }
 #ifdef TRACK_PROVENANCE
         funnel.processing_input(cluster_num);
 #endif
@@ -335,9 +385,12 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
         //Keep only the extensions whose score is within extension_score_threshold
         //of the best scoring extension
         for (GaplessExtension& extension : extensions) {
+            num_extensions++;
             if (extension_score_threshold == 0 || 
                 (int)extension.core_length() > best_extension_score - extension_score_threshold) {
                 filtered_extensions.push_back(std::move(extension));
+            } else {
+                num_extensions_trashed ++;
             }
         }
         cluster_extensions.emplace_back(std::move(filtered_extensions));
@@ -351,6 +404,8 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
         funnel.processed_input();
 #endif
     }
+    num_clusters_trashed = num_clusters-num_extension_sets;
+    num_corr_clusters = num_clusters_correct - num_extension_sets_correct;
     
 #ifdef TRACK_PROVENANCE
     funnel.substage("score");
@@ -500,6 +555,9 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
             break;
         }
     }
+    if (track) {
+        num_extension_sets_trashed = num_extension_sets - alignments.size();
+    }
     
     if (alignments.size() == 0) {
         // Produce an unaligned Alignment
@@ -608,14 +666,19 @@ bool MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
 #endif
     
     //TODO: Remove these
-    Mapper mapper(xg_index, nullptr, nullptr);
-    mappings[0].clear_refpos();
-    mapper.annotate_with_initial_path_positions(mappings[0], 0);
-    alignment_set_distance_to_correct(mappings[0], base_offsets);
-    bool correct = (mappings[0].to_correct().name() != "" && mappings[0].to_correct().offset() <= 100);
+    if (track) {
+        Mapper mapper(xg_index, nullptr, nullptr);
+        mappings[0].clear_refpos();
+        mapper.annotate_with_initial_path_positions(mappings[0], 0);
+        alignment_set_distance_to_correct(mappings[0], base_offsets);
+        correct = (mappings[0].to_correct().name() != "" && mappings[0].to_correct().offset() <= 100);
+    }
     // Ship out all the aligned alignments
     alignment_emitter.emit_mapped_single(std::move(mappings));
-    return correct;
+    return make_tuple(correct, num_clusters, num_corr_clusters, num_clusters_trashed, 
+                        num_extensions, num_corr_extensions, num_extensions_trashed,
+                        num_extension_sets,num_corr_extension_sets,num_extension_sets_trashed,
+                        mappings[0].identity());
 
 
 #ifdef debug
