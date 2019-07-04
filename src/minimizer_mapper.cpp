@@ -326,11 +326,15 @@ if (track) {
     if (track) {
         for (size_t i = 0 ; i < clusters.size() ;i++) {
             auto& cluster = clusters[i];
+            bool correct = false;
             for (size_t& seed : cluster) {
                 if (seed_correctness[seed]) {
                     cluster_correctness[i] = true;
-                    num_clusters_correct ++;
+                    correct = true;
                 }
+            }
+            if (correct) {
+               num_clusters_correct ++;
             }
         }
     }
@@ -348,8 +352,8 @@ if (track) {
         }
         num_extension_sets ++;
         
-        extension_correctness.push_back(cluster_correctness[i]);
-        if (cluster_correctness[i]) {
+        extension_correctness.push_back(cluster_correctness[cluster_num]);
+        if (cluster_correctness[cluster_num]) {
             num_extension_sets_correct ++;
         }
 #ifdef TRACK_PROVENANCE
