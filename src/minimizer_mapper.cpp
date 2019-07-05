@@ -340,13 +340,18 @@ if (track) {
     }
 
     vector<bool> extension_correctness;
-    size_t num_extension_sets_correct = 0;
-    for (size_t i = 0; i < clusters.size() && num_extension_sets < max_extensions &&
-                 (cluster_coverage_threshold == 0 || read_coverage_by_cluster[cluster_indexes_in_order[i]] > cluster_coverage_cutoff); i++) {
+    
+    size_t num_extensions = 0;
+    for (size_t i = 0; i < clusters.size() && num_extensions < max_extensions; i++) {
         // For each cluster, sorted by the cluster score
         size_t& cluster_num = cluster_indexes_in_order[i];
 
-        if (cluster_score_threshold != 0 && cluster_score[cluster_num] < cluster_score_cutoff) {
+        //Always take the first two clusters, but filter the rest
+        if (i > 1 && (cluster_score_threshold != 0 && cluster_score[cluster_indexes_in_order[i]] < cluster_score_cutoff)) {
+            //If the cluster score isn't good enough, then no later one will be so we break
+            break;
+        } 
+        if (i > 1 && (cluster_coverage_threshold != 0 && read_coverage_by_cluster[cluster_num] < cluster_coverage_cutoff)) {
             //If the cluster_coverage isn't good enough, ignore this cluster
             continue;
         }
