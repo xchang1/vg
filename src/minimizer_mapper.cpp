@@ -340,8 +340,8 @@ if (track) {
     }
 
     vector<bool> extension_correctness;
+    size_t num_extension_sets_correct = 0;
     
-    size_t num_extensions = 0;
     for (size_t i = 0; i < clusters.size() && num_extensions < max_extensions; i++) {
         // For each cluster, sorted by the cluster score
         size_t& cluster_num = cluster_indexes_in_order[i];
