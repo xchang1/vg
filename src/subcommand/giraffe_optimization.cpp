@@ -313,6 +313,7 @@ int main_giraffe(int argc, char** argv) {
                                         float total_num_extension_sets = 0;
                                         float total_num_extension_sets_trashed = 0;
                                         float total_num_correct_extension_sets_trashed = 0;
+                                        float total_identity = 0;
 
                                         out << max_extensions << "\t" << max_alignments << "\t" << cluster_score << "\t" 
                                              << cluster_coverage << "\t" << extension_set << "\t" << hit_cap << "\t"
@@ -447,6 +448,7 @@ int main_giraffe(int argc, char** argv) {
                                                     total_num_extension_sets += get<7>(results);
                                                     total_num_extension_sets_trashed += get<8>(results);
                                                     total_num_correct_extension_sets_trashed += get<9>(results);
+                                                    total_identity += get<10>(results);
                                                 };
                                                     
                                                 for (auto& gam_name : gam_filenames) {
@@ -474,7 +476,8 @@ int main_giraffe(int argc, char** argv) {
                                             << total_num_correct_extensions_trashed  / 200000.0 << "\t"
                                             << total_num_extension_sets  / 200000.0 << "\t"
                                             << total_num_extension_sets_trashed  / 200000.0 << "\t"
-                                            << total_num_correct_extension_sets_trashed  / 200000.0 << endl;
+                                            << total_num_correct_extension_sets_trashed  / 200000.0 << "\t" 
+                                            << total_identity  / 200000.0 << endl;
                                     }
                                 }
                             }

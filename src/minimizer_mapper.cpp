@@ -684,9 +684,9 @@ if (track) {
     }
     // Ship out all the aligned alignments
     alignment_emitter.emit_mapped_single(std::move(mappings));
-    return make_tuple(correct, num_clusters, num_corr_clusters, num_clusters_trashed, 
-                        num_extensions, num_corr_extensions, num_extensions_trashed,
-                        num_extension_sets,num_corr_extension_sets,num_extension_sets_trashed,
+    return make_tuple(correct, num_clusters,  num_clusters_trashed, num_corr_clusters, 
+                        num_extensions,  num_extensions_trashed,num_corr_extensions,
+                        num_extension_sets, num_extension_sets_trashed, num_corr_extension_sets,
                         mappings[0].identity());
 
 
