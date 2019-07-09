@@ -92,7 +92,7 @@ tuple<bool, size_t, size_t, size_t, size_t, size_t, size_t, size_t, size_t, size
         size_t hits = minimizer_index->count(minimizers[i]);
         if (hits > 0) {
             if (hits <= hard_hit_cap) {
-                minimizer_score[i] = 1.0 + std::log(minimizer_index->size()) - std::log(hits);
+                minimizer_score[i] = 1.0 + std::log(hard_hit_cap) - std::log(hits);
             } else {
                 minimizer_score[i] = 1.0;
             }
