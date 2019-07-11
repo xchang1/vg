@@ -301,16 +301,17 @@ if (track) {
     std::sort(cluster_indexes_in_order.begin(), cluster_indexes_in_order.end(), 
         [&](const size_t& a, const size_t& b) -> bool {
             // Return true if a must come before b, and false otherwise
-            return (cluster_score[a] > cluster_score[b]);
+            return (read_coverage_by_cluster[a] > read_coverage_by_cluster[b]);
     });
 
     //Retain clusters only if their read coverage is better than this
     double cluster_coverage_cutoff = cluster_indexes_in_order.size() == 0 ? 0 : 
-                    *std::max_element(read_coverage_by_cluster.begin(), read_coverage_by_cluster.end())
+                  read_coverage_by_cluster [cluster_indexes_in_order[0]]
                                     - cluster_coverage_threshold;
     //Retain clusters only if their score is better than this
-    double cluster_score_cutoff = cluster_score.size() == 0 ? 0 :
-                                 cluster_score[cluster_indexes_in_order[0]] - cluster_score_threshold;
+    double cluster_score_cutoff = cluster_score.size() == 0 ? 0 : 
+                    *std::max_element(cluster_score.begin(), cluster_score.end())
+                    - cluster_score_threshold;
     
 #ifdef TRACK_PROVENANCE
     // Now we go from clusters to gapless extensions
@@ -349,11 +350,11 @@ if (track) {
         //Always take the first two clusters, but filter the rest
         if (cluster_score_threshold != 0 && cluster_score[cluster_num] < cluster_score_cutoff) {
             //If the cluster score isn't good enough, then no later one will be so we break
-            break;
+            continue;
         } 
         if (cluster_coverage_threshold != 0 && read_coverage_by_cluster[cluster_num] < cluster_coverage_cutoff) {
             //If the cluster_coverage isn't good enough, ignore this cluster
-            continue;
+            break;
         }
         num_extension_sets ++;
         
