@@ -345,6 +345,7 @@ int main_giraffe(int argc, char** argv) {
                                             // Use 0 to represent the default.
                                             threads_to_run.push_back(0);
                                         }
+                                        threads_to_run[0] = 1;
 
                                         //Map the real reads to get the times
                                         for (size_t thread_count_current : threads_to_run) {
