@@ -144,7 +144,7 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
 
 
     //Mark each seed as correct or incorrect
-    vector<bool> seed_correctness (false, seeds.size());//TODO correct order?
+    vector<bool> seed_correctness (seeds.size(), false);
     if (aln.refpos_size() != 0) {
         // Take the first refpos as the true position.
         auto& true_pos = aln.refpos(0);
