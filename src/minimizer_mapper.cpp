@@ -143,6 +143,24 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     }
 
 
+    //Mark each seed as correct or incorrect
+    vector<bool> seed_correctness (false, seeds.size());//TODO correct order?
+    if (aln.refpos_size() != 0) {
+        // Take the first refpos as the true position.
+        auto& true_pos = aln.refpos(0);
+        
+        for (size_t i = 0; i < seeds.size(); i++) {
+            // Find every seed's reference positions. This maps from path name to pairs of offset and orientation.
+            auto offsets = algorithms::nearest_offsets_in_paths(xg_index, seeds[i], 100);
+            for (auto& hit_pos : offsets[xg_index->get_path_handle(true_pos.name())]) {
+                // Look at all the ones on the path the read's true position is on.
+                if (abs((int64_t)hit_pos.first - (int64_t) true_pos.offset()) < 200) {
+                    seed_correctness[i] = true;
+                }
+            }
+        }
+    }
+
     if (track_provenance && track_correctness) {
         // Tag seeds with correctness based on proximity along paths to the input read's refpos
         funnel.substage("correct");
@@ -182,6 +200,18 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
         
     // Cluster the seeds. Get sets of input seed indexes that go together.
     vector<vector<size_t>> clusters = clusterer.cluster_seeds(seeds, distance_limit);
+
+    for (size_t cluster_i = 0 ; cluster_i < clusters.size() ; cluster_i++) {
+        vector<size_t>& cluster = clusters[cluster_i];
+        size_t num_correct = 0;
+        for (size_t seed : cluster) {
+            if ( seed_correctness[seed]){
+                num_correct++;
+            }
+        }
+        cerr << num_correct << "," << cluster.size() << "\t";
+    }
+    cerr << endl;
     
     if (track_provenance) {
         funnel.substage("score");
