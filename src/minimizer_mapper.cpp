@@ -108,25 +108,32 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
         // Select the minimizer if it is informative enough or if the total score
         // of the selected minimizers is not high enough.
         size_t hits = minimizer_index.count(minimizers[minimizer_num]);
+        if (hits <= hit_cap || (hits <= hard_hit_cap && selected_score + minimizer_score[minimizer_num] <= target_score)) {
 
-        //Take all the seeds
-
-        // Locate the hits.
-        for (auto& hit : minimizer_index.find(minimizers[minimizer_num])) {
-            // Reverse the hits for a reverse minimizer
-            if (minimizers[minimizer_num].is_reverse) {
-                size_t node_length = gbwt_graph.get_length(gbwt_graph.get_handle(id(hit)));
-                hit = reverse_base_pos(hit, node_length);
+            // Locate the hits.
+            for (auto& hit : minimizer_index.find(minimizers[minimizer_num])) {
+                // Reverse the hits for a reverse minimizer
+                if (minimizers[minimizer_num].is_reverse) {
+                    size_t node_length = gbwt_graph.get_length(gbwt_graph.get_handle(id(hit)));
+                    hit = reverse_base_pos(hit, node_length);
+                }
+                // For each position, remember it and what minimizer it came from
+                seeds.push_back(hit);
+                seed_to_source.push_back(minimizer_num);
             }
-            // For each position, remember it and what minimizer it came from
-            seeds.push_back(hit);
-            seed_to_source.push_back(minimizer_num);
-        }
-        selected_score += minimizer_score[minimizer_num];
-        
-        if (track_provenance) {
-            // Record in the funnel that this minimizer gave rise to these seeds.
-            funnel.expand(minimizer_num, hits);
+            selected_score += minimizer_score[minimizer_num];
+            
+            if (track_provenance) {
+                // Record in the funnel that this minimizer gave rise to these seeds.
+                funnel.expand(minimizer_num, hits);
+            }
+        } else {
+            rejected_count++;
+            
+            if (track_provenance) {
+                // Record in the funnel thast we rejected it
+                funnel.kill(minimizer_num);
+            }
         }
         
         if (track_provenance) {
@@ -179,7 +186,6 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     if (track_provenance) {
         funnel.substage("score");
     }
-
 
     // Cluster score is the sum of minimizer scores.
     std::vector<double> cluster_score(clusters.size(), 0.0);
@@ -282,9 +288,14 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     cluster_extensions.reserve(cluster_indexes_in_order.size());
     
     size_t num_extensions = 0;
-    for (size_t i = 0; i < clusters.size(); i++) {
+    for (size_t i = 0; i < clusters.size() && num_extensions < max_extensions &&
+                 (cluster_coverage_threshold == 0 || read_coverage_by_cluster[cluster_indexes_in_order[i]] > cluster_coverage_cutoff); i++) {
         // For each cluster, in sorted order
         size_t& cluster_num = cluster_indexes_in_order[i];
+        if (cluster_score_threshold != 0 && cluster_score[cluster_num] < cluster_score_cutoff) {
+            //If the score isn't good enough, ignore this cluster
+            continue;
+        }
         num_extensions ++;
         
         if (track_provenance) {
@@ -319,7 +330,10 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
         //Keep only the extensions whose score is within extension_score_threshold
         //of the best scoring extension
         for (GaplessExtension& extension : extensions) {
-            filtered_extensions.push_back(std::move(extension));
+            if (extension_score_threshold == 0 || 
+                extension.score > best_extension_score - extension_score_threshold) {
+                filtered_extensions.push_back(std::move(extension));
+            }
         }
         cluster_extensions.emplace_back(std::move(filtered_extensions));
         
@@ -408,7 +422,7 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
 
         auto& extensions = cluster_extensions[extension_num];
         
-        if (true) {
+        if (i < 2 || (extension_set_score_threshold == 0 || cluster_extension_scores[extension_num] > extension_set_cutoff)) {
             // Always take the first and second.
             // For later ones, check if this score is significant relative to the running best and second best scores.
             
@@ -543,15 +557,17 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
         // And of the alignments we aren't
         scores.push_back(alignments[alignments_in_order[i]].score());
     }
-    
+        
 #ifdef debug
     cerr << "For scores ";
     for (auto& score : scores) cerr << score << " ";
 #endif
 
     size_t winning_index;
-    double mapq = get_regular_aligner()->compute_mapping_quality(scores, false);
-
+    // Compute MAPQ if not unmapped. Otherwise use 0 instead of the 50% this would give us.
+    double mapq = (mappings.empty() || mappings.front().path().mapping_size() == 0) ? 0 : 
+        get_regular_aligner()->compute_mapping_quality(scores, false);
+    
 #ifdef debug
     cerr << "MAPQ is " << mapq << endl;
 #endif
