@@ -108,7 +108,7 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
         // Select the minimizer if it is informative enough or if the total score
         // of the selected minimizers is not high enough.
         size_t hits = minimizer_index.count(minimizers[minimizer_num]);
-        if (hits <= hit_cap || (hits <= hard_hit_cap && selected_score + minimizer_score[minimizer_num] <= target_score)) {
+        if (true) { //hits <= hit_cap || (hits <= hard_hit_cap && selected_score + minimizer_score[minimizer_num] <= target_score)) {
 
             // Locate the hits.
             for (auto& hit : minimizer_index.find(minimizers[minimizer_num])) {
@@ -288,14 +288,9 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     cluster_extensions.reserve(cluster_indexes_in_order.size());
     
     size_t num_extensions = 0;
-    for (size_t i = 0; i < clusters.size() && num_extensions < max_extensions &&
-                 (cluster_coverage_threshold == 0 || read_coverage_by_cluster[cluster_indexes_in_order[i]] > cluster_coverage_cutoff); i++) {
+    for (size_t i = 0; i < clusters.size() ; i++) {
         // For each cluster, in sorted order
         size_t& cluster_num = cluster_indexes_in_order[i];
-        if (cluster_score_threshold != 0 && cluster_score[cluster_num] < cluster_score_cutoff) {
-            //If the score isn't good enough, ignore this cluster
-            continue;
-        }
         num_extensions ++;
         
         if (track_provenance) {
@@ -330,8 +325,7 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
         //Keep only the extensions whose score is within extension_score_threshold
         //of the best scoring extension
         for (GaplessExtension& extension : extensions) {
-            if (extension_score_threshold == 0 || 
-                extension.score > best_extension_score - extension_score_threshold) {
+            if (true) {//extension_score_threshold == 0 || extension.score > best_extension_score - extension_score_threshold) {
                 filtered_extensions.push_back(std::move(extension));
             }
         }
@@ -422,7 +416,7 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
 
         auto& extensions = cluster_extensions[extension_num];
         
-        if (i < 2 || (extension_set_score_threshold == 0 || cluster_extension_scores[extension_num] > extension_set_cutoff)) {
+        if (true) { //i < 2 || (extension_set_score_threshold == 0 || cluster_extension_scores[extension_num] > extension_set_cutoff)) {
             // Always take the first and second.
             // For later ones, check if this score is significant relative to the running best and second best scores.
             
@@ -566,7 +560,7 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     size_t winning_index;
     // Compute MAPQ if not unmapped. Otherwise use 0 instead of the 50% this would give us.
     double mapq = (mappings.empty() || mappings.front().path().mapping_size() == 0) ? 0 : 
-        get_regular_aligner()->compute_mapping_quality(scores, false);
+        get_regular_aligner()->maximum_mapping_quality_exact(scores, &winning_index);
     
 #ifdef debug
     cerr << "MAPQ is " << mapq << endl;
