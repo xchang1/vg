@@ -406,7 +406,7 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
     // Keep track of best and second best scores.
     int second_best_score = cluster_extension_scores.size() < 2 ? 0 :
                             cluster_extension_scores[extension_indexes_in_order[1]];
-    for (size_t i = 0; i < extension_indexes_in_order.size() && i < max_alignments ; i++) {
+    for (size_t i = 0; i < extension_indexes_in_order.size(); i++) {
         // Find the extension group we are talking about
         size_t& extension_num = extension_indexes_in_order[i];
         
