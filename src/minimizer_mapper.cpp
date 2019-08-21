@@ -540,6 +540,10 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
         // Assign primary and secondary status
         out.set_is_secondary(i > 0);
     }
+    if (track_correctness) {
+        // And with the last stage at which we had any descendants of the correct seed hit locations
+        set_annotation(mappings[0], "secondary_scores", scores);
+    }
     
     // Stop this alignment
     funnel.stop();
@@ -550,11 +554,6 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
         funnel.for_each_stage([&](const string& stage, const vector<size_t>& result_sizes) {
             // Save the number of items
             set_annotation(mappings[0], "stage_" + stage + "_results", (double)result_sizes.size());
-            // Save the size of each item
-            vector<double> converted;
-            converted.reserve(result_sizes.size());
-            std::copy(result_sizes.begin(), result_sizes.end(), std::back_inserter(converted));
-            set_annotation(mappings[0], "stage_" + stage + "_sizes", converted);
         });
 
         if (track_correctness) {
