@@ -179,11 +179,29 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
             }
         }
     }
+
+    vector<bool> seed_correctness;
+    if (aln.refpos_size() != 0) {
+        // Take the first refpos as the true position.
+        auto& true_pos = aln.refpos(0);
         
-#ifdef debug
+        for (size_t i = 0; i < seeds.size(); i++) {
+            // Find every seed's reference positions. This maps from path name to pairs of offset and orientation.
+            bool is_correct = false;
+            auto offsets = algorithms::nearest_offsets_in_paths(path_graph, seeds[i], 100);
+            for (auto& hit_pos : offsets[path_graph->get_path_handle(true_pos.name())]) {
+                // Look at all the ones on the path the read's true position is on.
+                if (abs((int64_t)hit_pos.first - (int64_t) true_pos.offset()) < 200) {
+                    // Call this seed hit close enough to be correct
+                    is_correct = true;
+                }
+            }
+            seed_correctness.push_back(is_correct);
+        }
+    }
+        
     cerr << "Read " << aln.name() << ": " << aln.sequence() << endl;
     cerr << "Found " << seeds.size() << " seeds from " << (minimizers.size() - rejected_count) << " minimizers, rejected " << rejected_count << endl;
-#endif
 
     if (track_provenance) {
         // Begin the clustering stage
@@ -262,9 +280,19 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
 
     }
 
-#ifdef debug
-    cerr << "Found " << clusters.size() << " clusters" << endl;
-#endif
+cerr << "Found " << clusters.size() << " clusters" << endl;
+for (auto& cluster : clusters) {
+    cerr << "\t";
+    int true_count = 0;
+    for (auto& seed : cluster) {
+        if (seed_correctness[seed]) {
+            cerr << seeds[seed] << " ";
+            true_count ++;
+        }
+    }
+    cerr << true_count << "/" << cluster.size() << " correct seeds, " << endl;
+
+}
                                     
     // Retain clusters only if their score is better than this, in addition to the coverage cutoff
     double cluster_score_cutoff = cluster_score.size() == 0 ? 0 :
@@ -370,6 +398,15 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
             funnel.score(i, cluster_extension_scores.back());
             funnel.produced_output();
         }
+    }
+    cerr << "Cluster extensions:" << endl;
+    for (auto& extension_set : cluster_extensions) {
+        cerr << "\t";
+        for (GaplessExtension& ex: extension_set) {
+           cerr << ex.offset << "," << ex.starting_position(gbwt_graph).node_id() << " "; 
+        }
+        cerr << endl;
+
     }
     
     if (track_provenance) {
@@ -493,6 +530,10 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
             // Say it came from nowhere
             funnel.introduce();
         }
+    }
+    cerr << "Alignments" << endl;
+    for (auto& alignment : alignments) {
+        cerr << alignment.score() << " " << alignment_start(alignment).node_id() << endl;
     }
     
     if (track_provenance) {
