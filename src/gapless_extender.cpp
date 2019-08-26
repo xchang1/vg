@@ -390,6 +390,7 @@ std::vector<GaplessExtension> GaplessExtender::extend(cluster_type& cluster, con
                 if (best_match.full() && best_match.internal_score <= max_mismatches) {
                     full_length_mismatches = best_match.internal_score;
                     best_match_is_full_length = true;
+                    cerr << "\tgapless extender found a full length match" << endl;
                 }
             }
         }
@@ -411,7 +412,7 @@ std::vector<GaplessExtension> GaplessExtender::extend(cluster_type& cluster, con
         }
     }
     if (full_length_found) {
-        cerr << "  Gapless extender found " << result.size() << " full length extensions" << endl;
+        cerr << "  Gapless extender found " << result.size() << " full length extensions and " << non_full_length_result.size() << "non-full length extensions" << endl;
     } else {
         cerr << "  Gapless extender found " << result.size() << " non-full length extension" << endl;
     }
