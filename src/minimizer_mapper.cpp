@@ -109,7 +109,7 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
         // of the selected minimizers is not high enough.
         size_t hits = minimizer_index.count(minimizers[minimizer_num]);
         
-        if (true) {//hits <= hit_cap || (hits <= hard_hit_cap && selected_score + minimizer_score[minimizer_num] <= target_score)) {
+        if (true) {
             // Locate the hits.
             for (auto& hit : minimizer_index.find(minimizers[minimizer_num])) {
                 // Reverse the hits for a reverse minimizer
@@ -483,11 +483,6 @@ for (auto& cluster : clusters) {
                         second_best_extension.set_identity(identity);
 
                     }
-                    alignments.push_back(std::move(best_extension));
-                    if (second_best_score != 0 ) {
-                        alignments.push_back(std::move(second_best_extension));
-                    }
-                
                 }
                 if (track_provenance) {
                     // Stop the current substage
@@ -504,10 +499,6 @@ for (auto& cluster : clusters) {
                 // second_best_extension, if there is a second best
                 find_optimal_tail_alignments(aln, extensions, best_extension, second_best_extension);
 
-                if (second_best_extension.score() != 0) {
-                    alignments.push_back(move(second_best_extension));
-                }
-                alignments.push_back(move(best_extension));
                 
                 if (track_provenance) {
                     // We're done chaining. Next alignment may not go through this substage.
@@ -519,13 +510,19 @@ for (auto& cluster : clusters) {
             }
             
             
+            
+            if (second_best_extension.score() != 0) {
+                alignments.push_back(std::move(second_best_extension));
+            }
+            alignments.push_back(std::move(best_extension));
+
             if (track_provenance) {
                 // Record the Alignment and its score with the funnel
                 funnel.project(extension_num);
                 if (second_best_extension.score() != 0) {
-                    funnel.score(alignments.size() - 2, second_best_extension.score());
+                    funnel.score(alignments.size() - 2, alignments[alignments.size() - 2].score());
                 }
-                funnel.score(alignments.size() - 1, best_extension.score());
+                funnel.score(alignments.size() - 1, alignments.back().score());
                 
                 // We're done with this input item
                 funnel.processed_input();
