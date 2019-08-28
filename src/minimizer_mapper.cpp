@@ -445,7 +445,7 @@ for (auto& cluster : clusters) {
             Alignment best_extension = aln;
             Alignment second_best_extension = aln;
             
-            if (extensions.front().full() && (extensions.size() < 2 || extensions[1].full())) {
+            if (extensions[0].full()) {
                 // We got full-length extensions, so directly convert to an Alignment.
                 
                 if (track_provenance) {
@@ -487,8 +487,8 @@ for (auto& cluster : clusters) {
                     // Stop the current substage
                     funnel.substage_stop();
                 }
-
             } else if (do_dp) {
+                // We need to do chaining.
                 
                 if (track_provenance) {
                     funnel.substage("chain");
