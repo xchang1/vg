@@ -407,7 +407,7 @@ std::vector<GaplessExtension> GaplessExtender::extend(cluster_type& cluster, con
             result.push_back(best_match);
         }
     }
-    cerr << "  Gapless extender found " << result.size() << " full length extensions and " << result_full_length.size() << "non-full length extensions" << endl;
+    cerr << "  Gapless extender found " << result.size() << " extensions" << endl;
 
     // Remove duplicates, find mismatches, and trim mismatches to maximize score.
     // If we have a full-length alignment with sufficiently few mismatches, we do
