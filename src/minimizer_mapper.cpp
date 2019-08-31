@@ -510,7 +510,9 @@ for (auto& cluster : clusters) {
             
             
             
-            if (second_best_extension.score() != 0) {
+            if (second_best_extension.score() != 0 && 
+                second_best_extension.score() > best_extension.score() * 0.5) {
+                //If there is a second extension and its score is at least half of the best score
                 alignments.push_back(std::move(second_best_extension));
             }
             alignments.push_back(std::move(best_extension));
@@ -713,9 +715,13 @@ int MinimizerMapper::estimate_extension_group_score(const Alignment& aln, vector
     if (extended_seeds.empty()) {
         // TODO: We should never see an empty group of extensions
         return 0;
-    } else if (extended_seeds.size() == 1 && extended_seeds.front().full()) {
-        // This is a full length match. We already have the score.
-        return extended_seeds.front().score;
+    } else if (extended_seeds.front().full()) {
+        // These are length matches. We already have the score.
+        int best_score = 0;
+        for (auto& extension : extended_seeds) {
+            best_score = max(best_score, extension.score);
+        }
+        return 2*best_score;
     } else {
         // This is a collection of one or more non-full-length extended seeds.
         
@@ -728,6 +734,7 @@ int MinimizerMapper::estimate_extension_group_score(const Alignment& aln, vector
         // flank bases that aren't universal mismatches, mismatch count for
         // those that are.
         int score_estimate = 0;
+        int best_score = 0;
         
         // We use a sweep line algorithm.
         // This records the last base to be covered by the current sweep line.
@@ -800,6 +807,7 @@ int MinimizerMapper::estimate_extension_group_score(const Alignment& aln, vector
             
             while (unentered < extended_seeds.size() && extended_seeds[unentered].read_interval.first == sweep_line) {
                 // Bring in anything that starts here
+                best_score = max(best_score, extended_seeds[unentered].score);
                 end_heap.emplace_back(extended_seeds[unentered].read_interval.second, unentered);
                 std::push_heap(end_heap.begin(), end_heap.end());
                 unentered++;
@@ -847,7 +855,7 @@ int MinimizerMapper::estimate_extension_group_score(const Alignment& aln, vector
         // TODO: should we apply full length bonuses?
         
         // When we get here, the score estimate is finished.
-        return score_estimate;
+        return score_estimate + best_score;
     }
     
 }
