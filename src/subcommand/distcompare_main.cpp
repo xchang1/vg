@@ -182,6 +182,8 @@ int main_plot(int argc, char** argv) {
     unique_ptr<MinimumDistanceIndex> distance_index = vg::io::VPKG::load_one<MinimumDistanceIndex>(distance_name);
     TargetValueSearch tvs(*xg_index, new TipAnchoredMaxDistance(*distance_index),
                               new SnarlMinDistance(*distance_index));
+    random_device seed_source;
+    default_random_engine generator(seed_source());
 
     
     // Make the clusterer
@@ -261,46 +263,39 @@ int main_plot(int argc, char** argv) {
 
 
             //Get distances between seeds
-            for (size_t i1 = 0 ; i1 < seeds.size() ; i1++) {
-                pos_t pos1 = seeds[i1];
-                for (size_t i2 = 0 ; i2 < seeds.size() ; i2++) {
-                    pos_t pos2 = seeds [i2];
-                    int64_t read_dist = minimizers[seed_to_source[i2]].offset - minimizers[seed_to_source[i1]].offset;
-                    //Find min distance
-                    clock_t start1 = clock();
-                    int64_t minDist = distance_index->minDistance(pos1, pos2);
-                    clock_t end1 = clock();
-                    clock_t t1 = end1 - start1;
-            
-                    //Find max distance
-                    clock_t start2 = clock();
-                    int64_t maxDist = distance_index->maxDistance(pos1, pos2);
-                    clock_t end2 = clock();
-            
-                    clock_t t2 = end2 - start2;
-            
-                    //Find old distance
-                    clock_t start3 = clock();
-                    int64_t oldDist = abs(xg_index->min_approx_path_distance(
-                                                get_id(pos1), get_id(pos2)));
-                    clock_t end3 = clock();
-                    clock_t t3 = end3 - start3;
-            
-            
-                    //Find max distance
-                    clock_t start4 = clock();
-                    int64_t tvsDist = tvs.tv_path_length(pos1, pos2, oldDist, 20);
-                    clock_t end4 = clock();
-            
-                    clock_t t4 = end4 - start4;
-            
-                    if (oldDist != INT64_MAX && oldDist != 0) {
-                    
-                        cout << read_dist << "\t" << minDist << "\t" << maxDist << "\t" << oldDist << "\t" << tvsDist << "\t" << t1 << "\t" << t2 << "\t" << t3 << "\t" << t4 << "\t" << endl;
+            size_t i1 = uniform_int_distribution<int>(0, seeds.size())(generator);
+            size_t i2 = uniform_int_distribution<int>(0, seeds.size())(generator);
+            pos_t pos1 = seeds[i1];
+            pos_t pos2 = seeds [i2];
+            int64_t read_dist = minimizers[seed_to_source[i2]].offset - minimizers[seed_to_source[i1]].offset;
 
-                    }
-                }
-            }
+            //Find min distance
+            std::chrono::time_point<std::chrono::system_clock> start1 = std::chrono::system_clock::now();
+            int64_t minDist = distance_index->minDistance(pos1, pos2);
+            std::chrono::time_point<std::chrono::system_clock> end1 = std::chrono::system_clock::now();
+            std::chrono::duration<double> t1 = end1-start1;
+            
+            //Find max distance
+            std::chrono::time_point<std::chrono::system_clock> start2 = std::chrono::system_clock::now();
+            int64_t maxDist = distance_index->maxDistance(pos1, pos2);
+            std::chrono::time_point<std::chrono::system_clock> end2 = std::chrono::system_clock::now();
+            std::chrono::duration<double> t2 = end2-start2;
+            
+            //Find old distance
+            std::chrono::time_point<std::chrono::system_clock> start3 = std::chrono::system_clock::now();
+            int64_t oldDist = abs(xg_index->min_approx_path_distance(
+                                        get_id(pos1), get_id(pos2)));
+            std::chrono::time_point<std::chrono::system_clock> end3 = std::chrono::system_clock::now();
+            std::chrono::duration<double> t3 = end3-start3;
+            
+            
+            //Find max distance
+            std::chrono::time_point<std::chrono::system_clock> start4 = std::chrono::system_clock::now();
+            int64_t tvsDist = tvs.tv_path_length(pos1, pos2, oldDist, 20);
+            std::chrono::time_point<std::chrono::system_clock> end4 = std::chrono::system_clock::now();
+            std::chrono::duration<double> t4 = end4-start4;
+            
+            
             
             // Cluster the seeds. Get sets of input seed indexes that go together.
             // Make sure to time it.
@@ -309,6 +304,12 @@ int main_plot(int argc, char** argv) {
             vector<vector<size_t>> clusters = std::move(std::get<0>(paired_clusters));
             std::chrono::time_point<std::chrono::system_clock> end = std::chrono::system_clock::now();
             std::chrono::duration<double> elapsed_seconds = end-start;
+
+            if (oldDist != INT64_MAX && oldDist != 0) {
+            
+                cerr << read_dist << "\t" << minDist << "\t" << maxDist << "\t" << oldDist << "\t" << tvsDist << "\t" << t1.count() << "\t" << t2.count() << "\t" << t3.count() << "\t" << t4.count() << "\t" << elapsed_seconds.count() << endl;
+
+            }
             
             // Compute the covered portion of the read represented by each cluster
             vector<double> read_coverage_by_cluster;
