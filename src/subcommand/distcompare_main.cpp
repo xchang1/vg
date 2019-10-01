@@ -20,6 +20,9 @@
 #include <vg/io/vpkg.hpp>
 #include <vg/io/stream.hpp>
 #include <vg/io/protobuf_emitter.hpp>
+#include "cluster.hpp"
+#include "min_distance.hpp"
+
 
 #include <gbwtgraph/minimizer.h>
 
@@ -33,7 +36,7 @@ using namespace std;
 using namespace vg;
 using namespace vg::subcommand;
 
-void help_cluster(char** argv) {
+void help_plot(char** argv) {
     cerr
     << "usage: " << argv[0] << " cluster [options] input.gam > output.gam" << endl
     << "Find and cluster mapping seeds." << endl
@@ -42,17 +45,16 @@ void help_cluster(char** argv) {
     << "  -x, --xg-name FILE            use this xg index (required)" << endl
     << "  -g, --gcsa-name FILE          use this GCSA2/LCP index pair (both FILE and FILE.lcp)" << endl
     << "  -m, --minimizer-name FILE     use this minimizer index" << endl
-    << "  -s, --snarls FILE             cluster using these snarls (required)" << endl
     << "  -d, --dist-name FILE          cluster using this distance index (required)" << endl
     << "  -c, --hit-cap INT             ignore minimizers with more than this many locations [10]" << endl
     << "computational parameters:" << endl
     << "  -t, --threads INT             number of compute threads to use" << endl;
 }
 
-int main_cluster(int argc, char** argv) {
+int main_plot(int argc, char** argv) {
 
     if (argc == 2) {
-        help_cluster(argv);
+        help_plot(argv);
         return 1;
     }
 
@@ -60,7 +62,6 @@ int main_cluster(int argc, char** argv) {
     string xg_name;
     string gcsa_name;
     string minimizer_name;
-    string snarls_name;
     string distance_name;
     // How close should two hits be to be in the same cluster?
     size_t distance_limit = 1000;
@@ -75,7 +76,6 @@ int main_cluster(int argc, char** argv) {
             {"xg-name", required_argument, 0, 'x'},
             {"gcsa-name", required_argument, 0, 'g'},
             {"minimizer-name", required_argument, 0, 'm'},
-            {"snarls", required_argument, 0, 's'},
             {"dist-name", required_argument, 0, 'd'},
             {"hit-cap", required_argument, 0, 'c'},
             {"threads", required_argument, 0, 't'},
@@ -83,7 +83,7 @@ int main_cluster(int argc, char** argv) {
         };
 
         int option_index = 0;
-        c = getopt_long (argc, argv, "hx:g:m:s:d:c:t:",
+        c = getopt_long (argc, argv, "hx:g:m:d:c:t:",
                          long_options, &option_index);
 
 
@@ -117,13 +117,6 @@ int main_cluster(int argc, char** argv) {
                 }
                 break;
                 
-            case 's':
-                snarls_name = optarg;
-                if (snarls_name.empty()) {
-                    cerr << "error:[vg cluster] Must provide snarl file with -s." << endl;
-                    exit(1);
-                }
-                break;
                 
             case 'd':
                 distance_name = optarg;
@@ -151,7 +144,7 @@ int main_cluster(int argc, char** argv) {
             case 'h':
             case '?':
             default:
-                help_cluster(argv);
+                help_plot(argv);
                 exit(1);
                 break;
         }
@@ -168,10 +161,6 @@ int main_cluster(int argc, char** argv) {
         exit(1);
     }
     
-    if (snarls_name.empty()) {
-        cerr << "error:[vg cluster] Finding clusters requires snarls, must provide snarls file (-s)" << endl;
-        exit(1);
-    }
     
     if (distance_name.empty()) {
         cerr << "error:[vg cluster] Finding clusters requires a distance index, must provide distance index file (-d)" << endl;
@@ -179,7 +168,7 @@ int main_cluster(int argc, char** argv) {
     }
     
     // create in-memory objects
-    unique_ptr<PathPositionHandleGraph> xg_index = vg::io::VPKG::load_one<PathPositionHandleGraph>(xg_name);
+    unique_ptr<xg::XG> xg_index = vg::io::VPKG::load_one<xg::XG>(xg_name);
     unique_ptr<gcsa::GCSA> gcsa_index;
     unique_ptr<gcsa::LCPArray> lcp_index;
     if (!gcsa_name.empty()) {
@@ -190,8 +179,10 @@ int main_cluster(int argc, char** argv) {
     if (!minimizer_name.empty()) {
         minimizer_index = vg::io::VPKG::load_one<gbwtgraph::DefaultMinimizerIndex>(minimizer_name);
     }
-    unique_ptr<SnarlManager> snarl_manager = vg::io::VPKG::load_one<SnarlManager>(snarls_name);
     unique_ptr<MinimumDistanceIndex> distance_index = vg::io::VPKG::load_one<MinimumDistanceIndex>(distance_name);
+    TargetValueSearch tvs(*xg_index, new TipAnchoredMaxDistance(*distance_index),
+                              new SnarlMinDistance(*distance_index));
+
     
     // Make the clusterer
     SnarlSeedClusterer clusterer(*distance_index);
@@ -277,20 +268,21 @@ int main_cluster(int argc, char** argv) {
                     int64_t read_dist = minimizers[seed_to_source[i2]].offset - minimizers[seed_to_source[i1]].offset;
                     //Find min distance
                     clock_t start1 = clock();
-                    int64_t minDist = distance_index.minDistance(pos1, pos2);
+                    int64_t minDist = distance_index->minDistance(pos1, pos2);
                     clock_t end1 = clock();
                     clock_t t1 = end1 - start1;
             
                     //Find max distance
                     clock_t start2 = clock();
-                    int64_t maxDist = distance_index.maxDistance(pos1, pos2);
+                    int64_t maxDist = distance_index->maxDistance(pos1, pos2);
                     clock_t end2 = clock();
             
                     clock_t t2 = end2 - start2;
             
                     //Find old distance
                     clock_t start3 = clock();
-                    int64_t oldDist = abs(xg_index.closest_shared_path_oriented_distance(nodeID1, 0, false, nodeID2,     0, false));
+                    int64_t oldDist = abs(xg_index->min_approx_path_distance(
+                                                get_id(pos1), get_id(pos2)));
                     clock_t end3 = clock();
                     clock_t t3 = end3 - start3;
             
@@ -304,8 +296,9 @@ int main_cluster(int argc, char** argv) {
             
                     if (oldDist != INT64_MAX && oldDist != 0) {
                     
-                    cout << read_dist << "\t" << minDist << "\t" << maxDist << "\t" << oldDist << "\t" << tvsDist << "\t" << t1 << "\t" << t2 << "\t" << t3 << "\t" << t4 << "\t" << endl;
+                        cout << read_dist << "\t" << minDist << "\t" << maxDist << "\t" << oldDist << "\t" << tvsDist << "\t" << t1 << "\t" << t2 << "\t" << t3 << "\t" << t4 << "\t" << endl;
 
+                    }
                 }
             }
             
@@ -449,6 +442,6 @@ int main_cluster(int argc, char** argv) {
 }
 
 // Register subcommand
-static Subcommand vg_cluster("cluster", "find and cluster mapping seeds", DEVELOPMENT, main_cluster);
+static Subcommand vg_cluster("plot", "get stats for plot", DEVELOPMENT, main_plot);
 
 
