@@ -336,7 +336,7 @@ int main_plot(int argc, char** argv) {
             vector<vector<size_t>> clusters = std::move(std::get<0>(paired_clusters));
             std::chrono::time_point<std::chrono::system_clock> end = std::chrono::system_clock::now();
             std::chrono::duration<double> elapsed_seconds = end-start;
-            cout << elapsed_seconds.count() << endl;
+            cout << seeds.size() << " " << elapsed_seconds.count() << endl;
            
         });
     });
