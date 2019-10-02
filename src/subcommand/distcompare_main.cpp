@@ -168,7 +168,7 @@ int main_plot(int argc, char** argv) {
     }
     
     // create in-memory objects
-    unique_ptr<xg::XG> xg_index = vg::io::VPKG::load_one<xg::XG>(xg_name);
+    unique_ptr<PathPositionHandleGraph> xg_index = vg::io::VPKG::load_one<PathPositionHandleGraph>(xg_name);
     unique_ptr<gcsa::GCSA> gcsa_index;
     unique_ptr<gcsa::LCPArray> lcp_index;
     if (!gcsa_name.empty()) {
@@ -260,40 +260,64 @@ int main_plot(int argc, char** argv) {
                 
             }
 
+            vector<size_t> correct_seed_indices;
+            
+            //Remove incorrect seeds
+            if (aln.refpos_size() != 0) {
+                // Take the first refpos as the true position.
+                auto& true_pos = aln.refpos(0);
+            
+                for (size_t i = 0; i < seeds.size(); i++) {
+                    // Find every seed's reference positions. This maps from path name to pairs of offset and orientation.
+                    auto offsets = algorithms::nearest_offsets_in_paths(&(*xg_index), seeds[i], 100);
+                    for (auto& hit_pos : offsets[xg_index->get_path_handle(true_pos.name())]) {
+                        // Look at all the ones on the path the read's true position is on.
+                        if (abs((int64_t)hit_pos.first - (int64_t) true_pos.offset()) < 200) {
+                            // Call this seed hit close enough to be correct
+                            correct_seed_indices.push_back(i);
+                        }
+                    }
+                }
+            }
 
 
             //Get distances between seeds
-            size_t i1 = uniform_int_distribution<int>(0, seeds.size())(generator);
-            size_t i2 = uniform_int_distribution<int>(0, seeds.size())(generator);
-            pos_t pos1 = seeds[i1];
-            pos_t pos2 = seeds [i2];
-            int64_t read_dist = minimizers[seed_to_source[i2]].offset - minimizers[seed_to_source[i1]].offset;
+            size_t i1 = uniform_int_distribution<int>(0, correct_seed_indices.size()-1)(generator);
+            size_t i2 = uniform_int_distribution<int>(0, correct_seed_indices.size()-1)(generator);
+            if (minimizers[seed_to_source[correct_seed_indices[i2]]].offset < minimizers[seed_to_source[correct_seed_indices[i1]]].offset) {
+                size_t tmp = i1;
+                i1 = i2;
+                i2 = tmp;
+            }
+            pos_t pos1 = seeds[correct_seed_indices[i1]];
+            pos_t pos2 = seeds [correct_seed_indices[i2]];
+            int64_t read_dist = minimizers[seed_to_source[correct_seed_indices[i2]]].offset - minimizers[seed_to_source[correct_seed_indices[i1]]].offset;
 
             //Find min distance
             std::chrono::time_point<std::chrono::system_clock> start1 = std::chrono::system_clock::now();
             int64_t minDist = distance_index->minDistance(pos1, pos2);
             std::chrono::time_point<std::chrono::system_clock> end1 = std::chrono::system_clock::now();
-            std::chrono::duration<double> t1 = end1-start1;
+            std::chrono::duration<double> min_time = end1-start1;
             
             //Find max distance
             std::chrono::time_point<std::chrono::system_clock> start2 = std::chrono::system_clock::now();
             int64_t maxDist = distance_index->maxDistance(pos1, pos2);
             std::chrono::time_point<std::chrono::system_clock> end2 = std::chrono::system_clock::now();
-            std::chrono::duration<double> t2 = end2-start2;
+            std::chrono::duration<double> max_time = end2-start2;
             
             //Find old distance
             std::chrono::time_point<std::chrono::system_clock> start3 = std::chrono::system_clock::now();
-            int64_t oldDist = abs(xg_index->min_approx_path_distance(
-                                        get_id(pos1), get_id(pos2)));
+            int64_t oldDist = 0;//abs(xg_index->min_approx_path_distance(
+            //                            get_id(pos1), get_id(pos2)));
             std::chrono::time_point<std::chrono::system_clock> end3 = std::chrono::system_clock::now();
-            std::chrono::duration<double> t3 = end3-start3;
+            std::chrono::duration<double> old_time = end3-start3;
             
             
             //Find max distance
             std::chrono::time_point<std::chrono::system_clock> start4 = std::chrono::system_clock::now();
-            int64_t tvsDist = tvs.tv_path_length(pos1, pos2, oldDist, 20);
+            int64_t tvsDist = tvs.tv_path_length(pos1, pos2, read_dist, 20);
             std::chrono::time_point<std::chrono::system_clock> end4 = std::chrono::system_clock::now();
-            std::chrono::duration<double> t4 = end4-start4;
+            std::chrono::duration<double> tvs_time = end4-start4;
             
             
             
@@ -305,137 +329,12 @@ int main_plot(int argc, char** argv) {
             std::chrono::time_point<std::chrono::system_clock> end = std::chrono::system_clock::now();
             std::chrono::duration<double> elapsed_seconds = end-start;
 
-            if (oldDist != INT64_MAX && oldDist != 0) {
+            if (minDist != -1) {
             
-                cerr << read_dist << "\t" << minDist << "\t" << maxDist << "\t" << oldDist << "\t" << tvsDist << "\t" << t1.count() << "\t" << t2.count() << "\t" << t3.count() << "\t" << t4.count() << "\t" << elapsed_seconds.count() << endl;
+                cerr << read_dist << "\t" << minDist << "\t" << maxDist << "\t" << oldDist << "\t" << tvsDist << "\t" << min_time.count() << "\t" << max_time.count() << "\t" << old_time.count() << "\t" << tvs_time.count() << "\t" << elapsed_seconds.count() << endl;
 
             }
-            
-            // Compute the covered portion of the read represented by each cluster
-            vector<double> read_coverage_by_cluster;
-            for (auto& cluster : clusters) {
-                // We set bits in here to true when query anchors cover them
-                vector<bool> covered(aln.sequence().size());
-                // We use this to convert iterators to indexes
-                auto start = aln.sequence().begin();
-                
-                for (auto& hit_index : cluster) {
-                    // For each hit in the cluster, work out what anchor sequence it is from.
-                    size_t source_index = seed_to_source.at(hit_index);
-                    
-                    if (mapper) {
-                        // Using MEMs
-                        for (size_t i = (mems[source_index].begin - start); i < (mems[source_index].end - start); i++) {
-                            // Set all the bits in read space for that MEM
-                            covered[i] = true;
-                        }
-                    } else {
-                        // Using minimizers
-                        // The offset of a reverse minimizer is the endpoint of the kmer
-                        size_t start_offset = minimizers[source_index].offset;
-                        if (minimizers[source_index].is_reverse) {
-                            start_offset = start_offset + 1 - minimizer_index->k();
-                        }
-                        for (size_t i = start_offset; i < start_offset + minimizer_index->k(); i++) {
-                            // Set all the bits in read space for that minimizer.
-                            // Each minimizr is a length-k exact match starting at a position
-                            covered[i] = true;
-                        }
-                    }
-                }
-                
-                // Count up the covered positions
-                size_t covered_count = 0;
-                for (auto bit : covered) {
-                    covered_count += bit;
-                }
-                
-                // Turn that into a fraction
-                read_coverage_by_cluster.push_back(covered_count / (double) covered.size());
-            }
-            
-            // Make a vector of cluster indexes to sort
-            vector<size_t> cluster_indexes_in_order;
-            for (size_t i = 0; i < clusters.size(); i++) {
-                cluster_indexes_in_order.push_back(i);
-            }
-        
-            // Put the most covering cluster's index first
-            std::sort(cluster_indexes_in_order.begin(), cluster_indexes_in_order.end(), [&](const size_t& a, const size_t& b) -> bool {
-                // Return true if a must come before b, and false otherwise
-                return read_coverage_by_cluster.at(a) > read_coverage_by_cluster.at(b);
-            });
-            
-            // Find the seeds in the clusters tied for best.
-            vector<pos_t> best;
-            if (!clusters.empty()) {
-                // How much does the best cluster cover
-                double best_coverage = read_coverage_by_cluster.at(cluster_indexes_in_order.front());
-                for (size_t i = 0; i < cluster_indexes_in_order.size() &&
-                    read_coverage_by_cluster.at(cluster_indexes_in_order[i]) >= best_coverage; i++) {
-                    
-                    // For each cluster covering that much or more of the read
-                    for (auto& seed_index : clusters.at(cluster_indexes_in_order[i])) {
-                        // For each seed in those clusters
-                        
-                        // Mark that seed as being part of the best cluster(s)
-                        best.push_back(seeds.at(seed_index));
-                    }
-                    
-                }
-                
-            }
-            
-            // Decide if they are in the right place for the original alignment or not
-            unordered_set<vg::id_t> true_nodes;
-            for (auto& mapping : aln.path().mapping()) {
-                true_nodes.insert(mapping.position().node_id());
-            }
-            // We are in the right place if we share any nodes
-            bool have_overlap = false;
-            for (auto& pos : best) {
-                if (true_nodes.count(get_id(pos))) {
-                    // The cluster had a position on a node that the real alignment had.
-                    have_overlap = true;
-                }
-            }
-            
-            // We also want to know if we overlap any non-filtered hit
-            bool have_hit_overlap = false;
-            for (auto& pos : seeds) {
-                if (true_nodes.count(get_id(pos))) {
-                    // The hit set had a position on a node that the real alignment had.
-                    have_hit_overlap = true;
-                }
-            }
-            
-            // And we need a vector of cluster sizes
-            vector<double> cluster_sizes;
-            cluster_sizes.reserve(clusters.size());
-            for (auto& cluster : clusters) {
-                cluster_sizes.push_back((double)cluster.size());
-            }
-            
-            // Tag the alignment with cluster accuracy
-            set_annotation(aln, "best_cluster_overlap", have_overlap);
-            // And with any-hit overlap
-            set_annotation(aln, "any_seed_overlap", have_hit_overlap);
-            // And with cluster time
-            set_annotation(aln, "cluster_seconds", elapsed_seconds.count());
-            // And with hit count clustered
-            set_annotation(aln, "seed_count", (double)seeds.size());
-            // And with cluster count returned
-            set_annotation(aln, "cluster_count", (double)clusters.size());
-            // And with size of each cluster
-            set_annotation(aln, "cluster_sizes", cluster_sizes);
-            // And with the coverage of the read in the best cluster
-            set_annotation(aln, "best_cluster_coverage", clusters.empty() ? 0.0 :
-                read_coverage_by_cluster.at(cluster_indexes_in_order.front()));
-            
-            
-            // TODO: parallelize this
-            #pragma omp critical (cout)
-            emitter.write(std::move(aln));
+           
         });
     });
     
