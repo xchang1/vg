@@ -282,45 +282,52 @@ int main_plot(int argc, char** argv) {
 
 
             //Get distances between seeds
-            size_t i1 = uniform_int_distribution<int>(0, correct_seed_indices.size()-1)(generator);
-            size_t i2 = uniform_int_distribution<int>(0, correct_seed_indices.size()-1)(generator);
-            if (minimizers[seed_to_source[correct_seed_indices[i2]]].offset < minimizers[seed_to_source[correct_seed_indices[i1]]].offset) {
-                size_t tmp = i1;
-                i1 = i2;
-                i2 = tmp;
-            }
-            pos_t pos1 = seeds[correct_seed_indices[i1]];
-            pos_t pos2 = seeds [correct_seed_indices[i2]];
-            int64_t read_dist = minimizers[seed_to_source[correct_seed_indices[i2]]].offset - minimizers[seed_to_source[correct_seed_indices[i1]]].offset;
+            for (size_t i1 = 0 ; i1 < correct_seed_indices.size() ; i1++) {
+                pos_t pos1 = seeds[correct_seed_indices[i1]];
+                for (size_t i2 = 0 ; i2 < correct_seed_indices.size() ; i2++ ) {
+                    pos_t pos2 = seeds [correct_seed_indices[i2]];
+                    if (minimizers[seed_to_source[correct_seed_indices[i2]]].offset <= minimizers[seed_to_source[correct_seed_indices[i1]]].offset) {
+                        continue;
+                    }
+                    int64_t read_dist = minimizers[seed_to_source[correct_seed_indices[i2]]].offset - minimizers[seed_to_source[correct_seed_indices[i1]]].offset;
 
-            //Find min distance
-            std::chrono::time_point<std::chrono::system_clock> start1 = std::chrono::system_clock::now();
-            int64_t minDist = distance_index->minDistance(pos1, pos2);
-            std::chrono::time_point<std::chrono::system_clock> end1 = std::chrono::system_clock::now();
-            std::chrono::duration<double> min_time = end1-start1;
-            
-            //Find max distance
-            std::chrono::time_point<std::chrono::system_clock> start2 = std::chrono::system_clock::now();
-            int64_t maxDist = distance_index->maxDistance(pos1, pos2);
-            std::chrono::time_point<std::chrono::system_clock> end2 = std::chrono::system_clock::now();
-            std::chrono::duration<double> max_time = end2-start2;
-            
-            //Find old distance
-            std::chrono::time_point<std::chrono::system_clock> start3 = std::chrono::system_clock::now();
-            int64_t oldDist = 0;//abs(xg_index->min_approx_path_distance(
-            //                            get_id(pos1), get_id(pos2)));
-            std::chrono::time_point<std::chrono::system_clock> end3 = std::chrono::system_clock::now();
-            std::chrono::duration<double> old_time = end3-start3;
-            
-            
-            //Find max distance
-            std::chrono::time_point<std::chrono::system_clock> start4 = std::chrono::system_clock::now();
-            int64_t tvsDist = tvs.tv_path_length(pos1, pos2, read_dist, 20);
-            std::chrono::time_point<std::chrono::system_clock> end4 = std::chrono::system_clock::now();
-            std::chrono::duration<double> tvs_time = end4-start4;
-            
-            
-            
+                    //Find min distance
+                    std::chrono::time_point<std::chrono::system_clock> start1 = std::chrono::system_clock::now();
+                    int64_t minDist = distance_index->minDistance(pos1, pos2);
+                    std::chrono::time_point<std::chrono::system_clock> end1 = std::chrono::system_clock::now();
+                    std::chrono::duration<double> min_time = end1-start1;
+                    
+                    //Find max distance
+                    std::chrono::time_point<std::chrono::system_clock> start2 = std::chrono::system_clock::now();
+                    int64_t maxDist = distance_index->maxDistance(pos1, pos2);
+                    std::chrono::time_point<std::chrono::system_clock> end2 = std::chrono::system_clock::now();
+                    std::chrono::duration<double> max_time = end2-start2;
+                    
+                    //Find old distance
+                    std::chrono::time_point<std::chrono::system_clock> start3 = std::chrono::system_clock::now();
+                    int64_t oldDist = 0;//abs(xg_index->min_approx_path_distance(
+                    //                            get_id(pos1), get_id(pos2)));
+                    std::chrono::time_point<std::chrono::system_clock> end3 = std::chrono::system_clock::now();
+                    std::chrono::duration<double> old_time = end3-start3;
+                    
+                    
+                    //Find max distance
+                    std::chrono::time_point<std::chrono::system_clock> start4 = std::chrono::system_clock::now();
+                    int64_t tvsDist = tvs.tv_path_length(pos1, pos2, read_dist, 20);
+                    std::chrono::time_point<std::chrono::system_clock> end4 = std::chrono::system_clock::now();
+                    std::chrono::duration<double> tvs_time = end4-start4;
+                    
+                    
+
+                    if (minDist != -1) {
+                    
+                        cerr << read_dist << "\t" << minDist << "\t" << maxDist << "\t" << oldDist << "\t" << tvsDist << "\t" << min_time.count() << "\t" << max_time.count() << "\t" << old_time.count() << "\t" << tvs_time.count() << endl;
+
+                    }
+                }
+            }
+
+                    
             // Cluster the seeds. Get sets of input seed indexes that go together.
             // Make sure to time it.
             std::chrono::time_point<std::chrono::system_clock> start = std::chrono::system_clock::now();
@@ -328,12 +335,7 @@ int main_plot(int argc, char** argv) {
             vector<vector<size_t>> clusters = std::move(std::get<0>(paired_clusters));
             std::chrono::time_point<std::chrono::system_clock> end = std::chrono::system_clock::now();
             std::chrono::duration<double> elapsed_seconds = end-start;
-
-            if (minDist != -1) {
-            
-                cerr << read_dist << "\t" << minDist << "\t" << maxDist << "\t" << oldDist << "\t" << tvsDist << "\t" << min_time.count() << "\t" << max_time.count() << "\t" << old_time.count() << "\t" << tvs_time.count() << "\t" << elapsed_seconds.count() << endl;
-
-            }
+            cout << elapsed_seconds.count() << endl;
            
         });
     });
