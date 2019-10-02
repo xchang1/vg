@@ -169,6 +169,7 @@ int main_plot(int argc, char** argv) {
     
     // create in-memory objects
     unique_ptr<PathPositionHandleGraph> xg_index = vg::io::VPKG::load_one<PathPositionHandleGraph>(xg_name);
+    unique_ptr<xg::XG> xg = vg::io::VPKG::load_one<xg::XG>(xg_name);
     unique_ptr<gcsa::GCSA> gcsa_index;
     unique_ptr<gcsa::LCPArray> lcp_index;
     if (!gcsa_name.empty()) {
@@ -305,8 +306,8 @@ int main_plot(int argc, char** argv) {
                     
                     //Find old distance
                     std::chrono::time_point<std::chrono::system_clock> start3 = std::chrono::system_clock::now();
-                    int64_t oldDist = 0;//abs(xg_index->min_approx_path_distance(
-                    //                            get_id(pos1), get_id(pos2)));
+                    int64_t oldDist =abs(xg->min_approx_path_distance(
+                                                get_id(pos1), get_id(pos2)));
                     std::chrono::time_point<std::chrono::system_clock> end3 = std::chrono::system_clock::now();
                     std::chrono::duration<double> old_time = end3-start3;
                     
