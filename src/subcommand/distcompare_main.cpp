@@ -190,6 +190,7 @@ int main_plot(int argc, char** argv) {
     
     // Make the clusterer
     SnarlSeedClusterer clusterer(*distance_index);
+    //distance_index->printSnarlStats();
     
     // Make a Mapper to look up MEM seeds
     unique_ptr<Mapper> mapper;
@@ -213,113 +214,66 @@ int main_plot(int argc, char** argv) {
         
         vg::io::for_each_parallel<Alignment>(in, [&](Alignment& aln) {
             // For each input alignment
-            
-            // We will find all the seed hits
-            vector<pos_t> seeds;
-            
-            // If working with MEMs, this will hold all the MEMs
-            vector<MaximalExactMatch> mems;
-            // If working with minimizers, this will hold all the minimizers in the query
-            vector<gbwtgraph::DefaultMinimizerIndex::minimizer_type> minimizers;
-            // And either way this will map from seed to MEM or minimizer that generated it
-            vector<size_t> seed_to_source;
-            
-            if (mapper) {
-                // Find MEMs
-                double lcp_avg, fraction_filtered;
-                mems = mapper->find_mems_deep(aln.sequence().begin(), aln.sequence().end(), lcp_avg, fraction_filtered);
-                
-                // Convert to position seeds
-                for (size_t i = 0; i < mems.size(); i++) {
-                    auto& mem = mems[i];
-                    for (gcsa::node_type n : mem.nodes) {
-                        // Convert from GCSA node_type packing to a pos_t
-                        seeds.push_back(make_pos_t(n));
-                        all_seeds.push_back(make_pos_t(n));
-                        // And remember which MEM the seed came from.
-                        seed_to_source.push_back(i);
-                    }
-                }
-            } else {
-                // Find minimizers
-                assert(minimizer_index);
-                
-                // Find minimizers in the query
-                minimizers = minimizer_index->minimizers(aln.sequence());
-                
-                for (size_t i = 0; i < minimizers.size(); i++) {
-                    // For each minimizer
-                    if (hit_cap != 0 && minimizer_index->count(minimizers[i]) <= hit_cap) {
-                        // The minimizer is infrequent enough to be informative, so feed it into clustering
-                        
-                        // Locate it in the graph. We do not have to reverse the hits for a
-                        // reverse minimizers, as the clusterer only cares about node ids.
-                        for (auto& hit : minimizer_index->find(minimizers[i])) {
-                            // For each position, remember it and what minimizer it came from
-                            seeds.push_back(hit);
-                            all_seeds.push_back(hit);
-                            seed_to_source.push_back(i);
-                        }
-                    }
-                }
-                
-            }
+             
+           size_t i1 = uniform_int_distribution<int>(0,147)(generator);
+           size_t i2 = uniform_int_distribution<int>(0,147)(generator);
 
 
+           if (i1 + i2 >= 148) {
+               if (i2 > i1) {
+                   i2 = 148 - i2;
+               } else {
+                   i1 = 148 - i2;
+               }
+           }
 
-                    
-            // Cluster the seeds. Get sets of input seed indexes that go together.
-            // Make sure to time it.
-            std::chrono::time_point<std::chrono::system_clock> start = std::chrono::system_clock::now();
-            tuple<vector<vector<size_t>>,vector<vector<size_t>>> paired_clusters = clusterer.cluster_seeds(seeds, distance_limit);
-            vector<vector<size_t>> clusters = std::move(std::get<0>(paired_clusters));
-            std::chrono::time_point<std::chrono::system_clock> end = std::chrono::system_clock::now();
-            std::chrono::duration<double> elapsed_seconds = end-start;
-            cout << seeds.size() << " " << elapsed_seconds.count() << endl;
+           vector<Alignment> alns = alignment_ends(aln, i1, i2);
+
+
+           Position p1 = alignment_end(alns[0]);
+           Position p2 = alignment_start(alns[1]);
+
+           
+           pos_t pos1 = make_pos_t(p1);
+           pos_t pos2 = make_pos_t(p2);
+           if (get_id(pos1) != 0 && get_id(pos2) != 0) {
+
+           //Find min distance
+           std::chrono::time_point<std::chrono::system_clock> start1 = std::chrono::system_clock::now();
+           int64_t minDist = distance_index->minDistance(pos1, pos2);
+           std::chrono::time_point<std::chrono::system_clock> end1 = std::chrono::system_clock::now();
+           std::chrono::duration<double> min_time = end1-start1;
+           
+
+            //Dijkstra distance
+            std::chrono::time_point<std::chrono::system_clock> start2 = std::chrono::system_clock::now();
+            algorithms::dijkstra(&(*xg), xg_index->get_handle(get_id(pos1), is_rev(pos1)), 
+                   [&](const handle_t& curr, size_t d) {
+                       if (curr == xg_index->get_handle(get_id(pos2), is_rev(pos2))) {
+                           return false;
+                       } else {
+                           return true;
+                       }});
+            std::chrono::time_point<std::chrono::system_clock> end2 = std::chrono::system_clock::now();
+            std::chrono::duration<double> dtra_time = end2-start2;
+           
+           //Find old distance
+           std::chrono::time_point<std::chrono::system_clock> start3 = std::chrono::system_clock::now();
+           int64_t pathDist =abs(xg->min_approx_path_distance(
+                                       get_id(pos1), get_id(pos2)));
+           std::chrono::time_point<std::chrono::system_clock> end3 = std::chrono::system_clock::now();
+           std::chrono::duration<double> path_time = end3-start3;
+           
+           
+           
+           
+           
+           cerr << min_time.count() << "\t" << dtra_time.count() << "\t" << path_time.count() << endl;
+           }
            
         });
     });
- 
-
-    //Get distances between seeds
-    for (size_t i = 0 ; i < 200000 ; i++) {
-        pos_t pos1 = all_seeds[uniform_int_distribution<int>(0,all_seeds.size() - 1)(generator)];
-        pos_t pos2 = all_seeds[uniform_int_distribution<int>(0,all_seeds.size() - 1)(generator)];
-
-        //Find min distance
-        std::chrono::time_point<std::chrono::system_clock> start1 = std::chrono::system_clock::now();
-        int64_t minDist = distance_index->minDistance(pos1, pos2);
-        std::chrono::time_point<std::chrono::system_clock> end1 = std::chrono::system_clock::now();
-        std::chrono::duration<double> min_time = end1-start1;
         
-        //Dijkstra distance
-        std::chrono::time_point<std::chrono::system_clock> start2 = std::chrono::system_clock::now();
-        algorithms::dijkstra(&(*xg), xg_index->get_handle(get_id(pos1), is_rev(pos1)), 
-            [&](const handle_t& curr, size_t d) {
-                if (curr == xg_index->get_handle(get_id(pos2), is_rev(pos2))) {
-                    return false;
-                } else {
-                    return true;
-                }});
-        std::chrono::time_point<std::chrono::system_clock> end2 = std::chrono::system_clock::now();
-        std::chrono::duration<double> dijkstra_time = end2-start2;
-
-        //Find old distance
-        std::chrono::time_point<std::chrono::system_clock> start3 = std::chrono::system_clock::now();
-        int64_t oldDist =abs(xg->min_approx_path_distance(
-                                    get_id(pos1), get_id(pos2)));
-        std::chrono::time_point<std::chrono::system_clock> end3 = std::chrono::system_clock::now();
-        std::chrono::duration<double> path_time = end3-start3;
-
-        
-       
-
-        
-        cerr << min_time.count() << "\t" << dijkstra_time.count() << path_time.count() << endl;
-
-
-        
-    }
    
     return 0;
 }
