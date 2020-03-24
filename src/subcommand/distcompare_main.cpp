@@ -20,7 +20,7 @@ using namespace std;
 using namespace vg;
 using namespace vg::subcommand;
 
-int64_t minDistance(PathPositionHandleGraph* graph, pos_t pos1, pos_t pos2){
+int64_t dijkstra(PathPositionHandleGraph* graph, pos_t pos1, pos_t pos2){
     //Distance using djikstras algorithm
 
     auto cmp = [] (pair<pair<id_t, bool> , int64_t> x,
@@ -223,7 +223,7 @@ int main_distcompare(int argc, char** argv){
        
         //Find min distance 
         clock_t start1 = clock();
-        int64_t minDist = distance_index.minDistance(pos1, pos2);
+        int64_t minDist = distance_index->minDistance(pos1, pos2);
         clock_t end1 = clock();
         clock_t t1 = end1 - start1;
         minTimes.push_back(t1);
@@ -239,7 +239,7 @@ int main_distcompare(int argc, char** argv){
 
         //Find dijkstra distance 
         clock_t start4 = clock();
-        int64_t dijkstraDist = minDistance(xg_index, pos1, pos2, oldDist);
+        int64_t dijkstraDist = dijkstra(xg_index, pos1, pos2, oldDist);
         clock_t end4 = clock();
 
         clock_t t4 = end4 - start4;
