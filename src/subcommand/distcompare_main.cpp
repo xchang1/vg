@@ -12,7 +12,7 @@
 #include <random>
 #include <time.h>
 #include "subcommand.hpp"
-#include "distance.hpp"
+#include "min_distance.hpp"
 #include "cluster.hpp"
 #include "../benchmark.hpp"
 #include "../utility.hpp"
@@ -20,7 +20,7 @@ using namespace std;
 using namespace vg;
 using namespace vg::subcommand;
 
-int64_t minDistance(VG* graph, pos_t pos1, pos_t pos2){
+int64_t minDistance(PathPositionHandleGraph* graph, pos_t pos1, pos_t pos2){
     //Distance using djikstras algorithm
 
     auto cmp = [] (pair<pair<id_t, bool> , int64_t> x,
@@ -179,7 +179,7 @@ int main_distcompare(int argc, char** argv){
      unique_ptr<PathHandleGraph> path_handle_graph;
      bdsg::PathPositionOverlayHelper overlay_helper;
      if (!xg_name.empty()) {
-         path_handle_graph = vg::io::VPKG::load_one<PathHandleGraph>(xg_name     );
+         path_handle_graph = vg::io::VPKG::load_one<PathHandleGraph>(xg_name);
          xg_index = overlay_helper.apply(path_handle_graph.get());
      }   
 
@@ -208,11 +208,11 @@ int main_distcompare(int argc, char** argv){
         
     
         //Generate random positions by choosing snarls then nodes, then position
-        size_t maxPos = xg_index.seq_length;
+        size_t maxPos = xg_index->seq_length;
         size_t offset1 = uniform_int_distribution<int>(1, maxPos)(generator);
         size_t offset2 = uniform_int_distribution<int>(1, maxPos)(generator);
-        vg::id_t nodeID1 = xg_index.node_at_seq_pos(offset1);
-        vg::id_t nodeID2 = xg_index.node_at_seq_pos(offset2);
+        vg::id_t nodeID1 = xg_index->node_at_seq_pos(offset1);
+        vg::id_t nodeID2 = xg_index->node_at_seq_pos(offset2);
         bool rev1 = uniform_int_distribution<int>(0, 1)(generator);
         bool rev2 = uniform_int_distribution<int>(0, 1)(generator);
 
@@ -223,7 +223,7 @@ int main_distcompare(int argc, char** argv){
        
         //Find min distance 
         clock_t start1 = clock();
-        int64_t minDist = di.minDistance(pos1, pos2);
+        int64_t minDist = distance_index.minDistance(pos1, pos2);
         clock_t end1 = clock();
         clock_t t1 = end1 - start1;
         minTimes.push_back(t1);
@@ -231,7 +231,7 @@ int main_distcompare(int argc, char** argv){
 
         //Find old distance
         clock_t start3 = clock();
-        int64_t oldDist = abs(xg_index.oriented_distance(pos1, pos2));
+        int64_t oldDist = abs(xg_index->oriented_distance(pos1, pos2));
         clock_t end3 = clock();
         clock_t t3 = end3 - start3;
         oldTimes.push_back(t3);
@@ -248,7 +248,7 @@ int main_distcompare(int argc, char** argv){
 if (true) {
 
 //min dist time, dijkstra time, path-based time
-cout << t1 <<  << "\t" << t4 << "\t" << t3 <<  endl;
+cout << t1 << "\t" << t4 << "\t" << t3 <<  endl;
 }
     }                 
     
