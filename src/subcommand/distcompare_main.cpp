@@ -16,6 +16,10 @@
 #include "cluster.hpp"
 #include "../benchmark.hpp"
 #include "../utility.hpp"
+#include "snarls.hpp"
+#include "vg.hpp"
+
+
 using namespace std;
 using namespace vg;
 using namespace vg::subcommand;
@@ -23,8 +27,8 @@ using namespace vg::subcommand;
 int64_t dijkstra(PathPositionHandleGraph* graph, pos_t pos1, pos_t pos2){
     //Distance using djikstras algorithm
 
-    auto cmp = [] (pair<pair<id_t, bool> , int64_t> x,
-                   pair<pair<id_t, bool>, int64_t> y ) {
+    auto cmp = [] (pair<pair<vg::id_t, bool>, int64_t> x,
+                   pair<pair<vg::id_t, bool>, int64_t> y ) {
         return (x.second > y.second);
     };
 
@@ -42,27 +46,27 @@ int64_t dijkstra(PathPositionHandleGraph* graph, pos_t pos1, pos_t pos2){
     }
 
 
-    priority_queue< pair<pair<id_t, bool> , int64_t>,
-                    vector<pair<pair<id_t, bool>, int64_t>>,
+    priority_queue< pair<pair<vg::id_t, bool> , int64_t>,
+                    vector<pair<pair<vg::id_t, bool>, int64_t>>,
                           decltype(cmp)> reachable(cmp);
     handle_t currHandle = graph->get_handle(get_id(pos1), is_rev(pos1));
 
     int64_t dist = graph->get_length(currHandle) - get_offset(pos1);
 
     auto addFirst = [&](const handle_t& h) -> bool {
-        pair<id_t, bool> node = make_pair(graph->get_id(h),
+        pair<vg::id_t, bool> node = make_pair(graph->get_id(h),
                                           graph->get_is_reverse(h));
         reachable.push(make_pair(node, dist));
         return true;
     };
 
     graph->follow_edges(currHandle, false, addFirst);
-    unordered_set<pair<id_t, bool>> seen;
+    unordered_set<pair<vg::id_t, bool>> seen;
     seen.insert(make_pair(get_id(pos1), is_rev(pos1)));
     while (reachable.size() > 0) {
-        pair<pair<id_t, bool>, int64_t> next = reachable.top();
+        pair<pair<vg::id_t, bool>, int64_t> next = reachable.top();
         reachable.pop();
-        pair<id_t, bool> currID = next.first;
+        pair<vg::id_t, bool> currID = next.first;
         dist = next.second;
         if (seen.count(currID) == 0) {
 
@@ -71,7 +75,7 @@ int64_t dijkstra(PathPositionHandleGraph* graph, pos_t pos1, pos_t pos2){
             int64_t currDist = graph->get_length(currHandle);
 
             auto addNext = [&](const handle_t& h) -> bool {
-                pair<id_t, bool> node = make_pair(graph->get_id(h),
+                pair<vg::id_t, bool> node = make_pair(graph->get_id(h),
                                                 graph->get_is_reverse(h));
                 reachable.push(make_pair(node, currDist + dist));
                 return true;
@@ -231,7 +235,8 @@ int main_distcompare(int argc, char** argv){
 
         //Find old distance
         clock_t start3 = clock();
-        int64_t oldDist = abs(xg_index->oriented_distance(pos1, pos2));
+        PathOrientedDistanceMeasurer measurer(&xg_index);
+        int64_t oldDist = abs(measurer.oriented_distance(pos1, pos2));
         clock_t end3 = clock();
         clock_t t3 = end3 - start3;
         oldTimes.push_back(t3);
