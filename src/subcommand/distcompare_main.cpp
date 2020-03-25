@@ -22,6 +22,7 @@
 #include "vg.hpp"
 #include "xg.hpp"
 #include <bdsg/overlay_helper.hpp>
+#include "../algorithms/dijkstra.hpp"
 
 
 using namespace std;
@@ -43,6 +44,7 @@ static pair<unordered_set<Node*>, unordered_set<Edge*> > pb_contents(
     return ret;
 }
 
+/*
 int64_t dijkstra(xg::XG& graph, pos_t pos1, pos_t pos2){
     //Distance using djikstras algorithm
 
@@ -121,6 +123,7 @@ int64_t dijkstra(xg::XG& graph, pos_t pos1, pos_t pos2){
     }
     return shortestDistance == -1 ? -1 : shortestDistance-1;
 };
+*/
 
 void help_distcompare(char** argv){
     cerr << "usage: " << argv[0] << " distcompare [options]" << endl
@@ -152,7 +155,7 @@ int main_distcompare(int argc, char** argv){
                 {0, 0, 0, 0}
             };
         int option_index = 0;
-        c = getopt_long (argc, argv, "hx:d:s:",
+        c = getopt_long (argc, argv, "hx:d:s:v:",
                          long_options, &option_index);
         /* Detect the end of the options. */
         if (c == -1)
@@ -318,7 +321,16 @@ int main_distcompare(int argc, char** argv){
 
         //Find dijkstra distance 
         clock_t start4 = clock();
-        int64_t dijkstraDist = dijkstra(*xg_index, pos1, pos2);
+        int64_t dijkstraDist = -1;
+        algorithms::dijkstra(handle_graph, xg_index->get_handle(get_id(pos1), is_rev(pos1)),
+                 [&] (const handle_t& handle, size_t dist) {
+                     if (handle == xg_index->get_handle(get_id(pos2), is_rev(pos2))){
+                         dijkstraDist = dist;
+                         return false;
+                     } else {
+                         return true;
+                     }
+                 });
         clock_t end4 = clock();
 
         clock_t t4 = end4 - start4;
@@ -328,6 +340,7 @@ if (true) {
 
 //min dist time, dijkstra time, path-based time
 cout << t1 << "\t" << t4 << "\t" << t3 <<  endl;
+cerr << minDist << "\t" << dijkstraDist << "\t" << oldDist << endl;
 }
     }                 
     
