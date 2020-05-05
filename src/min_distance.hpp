@@ -322,6 +322,9 @@ class MinimumDistanceIndex {
     ///////// Data members of overall distance index
 
 
+    id_t min_node_id; //minimum node id of the graph
+    id_t max_node_id; //maximum node id of the graph
+
     ///vector of all SnarlIndex objects
     vector<SnarlIndex> snarl_indexes;
 
@@ -336,55 +339,12 @@ class MinimumDistanceIndex {
     sdsl::int_vector<> component_to_chain_length;
     sdsl::int_vector<> component_to_chain_index;
 
-    //Each of the ints in these vectors are offset by 1: 0 is stored as 1, etc.
-    //This is so that we can store -1 as 0 instead of int max
+    //Keep track of the snarls ans chains each node belongs to
+    enum SnarlType {TRIVIAL, SIMPLE, NONSIMPLE, NONE};
+    //TODO: Might be easier to make things functions of the overall distance index- node length at least would make things simpler
 
-    ///Vector of length max node id - min node id
-    ///For each node, stores the index into snarlIndexes for the primary snarl
-    ///containing the node
-    ///A primary snarl is the snarl that contains this node as an actual node,
-    ///as opposed to a node representing a snarl or chain
-    sdsl::int_vector<> primary_snarl_assignments;
+    sdsl::int_vector<> node_assignments;
 
-    ///For each node, stores the rank of the node in the snarlIndex
-    /// indicated by primary_snarl_assignments
-    /// Rank refers to the index into the SnarlIndex's distance matrix that 
-    /// represents a particular node
-    ///The rank stored is always for the fd direction, rev direction
-    /// is the index + 1. 
-    ///The first and last rank will always be the inward facing start and 
-    /// end nodes
-    /// If the start node is traversed backwards to enter the snarl, then the
-    /// rank 0 will represent the start node in reverse. The rank stored in this
-    /// vector will be 1, representing the start node forward
-    sdsl::int_vector<> primary_snarl_ranks;
-
-    ///Similar to primary snarls, stores snarl index of secondary snarl
-    ///each node belongs to, if any.
-    ///Secondary snarl can be a node that represents a snarl/chain in the
-    ///netgraph of the parent snarl or a node that participates in multiple
-    ///snarls in a chain. The primary snarl will always
-    ///be the snarl that occurs first in the chain
-    sdsl::int_vector<> secondary_snarl_assignments;
-
-    ///Stores the ranks of nodes in secondary snarls
-    sdsl::int_vector<> secondary_snarl_ranks;
-    
-    ///For each node, stores 1 if the node is in a secondary snarl and 0
-    ///otherwise. Use rank to find which index into secondary_snarls
-    ///a node's secondary snarl is at
-    sdsl::bit_vector has_secondary_snarl_bv;
-    sdsl::rank_support_v<1> has_secondary_snarl;
-
-    ///For each node, store the index and rank for the chain that the node
-    ///belongs to, if any
-    sdsl::int_vector<> chain_assignments;
-    sdsl::int_vector<> chain_ranks;
-    sdsl::bit_vector has_chain_bv;
-    sdsl::rank_support_v<1> has_chain;
-
-    id_t min_node_id; //minimum node id of the graph
-    id_t max_node_id; //maximum node id of the graph
 
 
     ///The total depth of the snarl tree, starting from 0
@@ -454,38 +414,20 @@ class MinimumDistanceIndex {
                 pair<size_t, bool> common_ancestor, pos_t& pos, bool rev) const;
 
 
-    /// Get the index into chain_indexes/rank in chain of node i.
-    /// Detects and throws an error if node i never got assigned to a snarl.
-    size_t get_primary_assignment(id_t i) const {
-        auto stored = primary_snarl_assignments[i - min_node_id];
-        if (stored == 0) {
-            // Somebody asked for a node. It should be assigned to a snarl, but it isn't.
-            throw runtime_error("Node " + std::to_string(i) + " not in any snarl. Distance index does " +
-                                "not match graph or was not generated from a snarl set including trivial snarls.");
-        }
-        return primary_snarl_assignments[i - min_node_id] - 1;
-    }
 
-    size_t get_primary_rank(id_t i) const {
-        return primary_snarl_ranks[i - min_node_id] - 1;
-    }
+    int64_t get_primary_snarl_assignment  (id_t id) const { return (int64_t) node_assignments[(id-min_node_id) * 6 + 0] - 1;}
+    int64_t get_primary_snarl_rank        (id_t id) const { return (int64_t) node_assignments[(id-min_node_id) * 6 + 1] - 1;}
+    int64_t get_secondary_snarl_assignment(id_t id) const { return (int64_t) node_assignments[(id-min_node_id) * 6 + 2] - 1;}
+    int64_t get_secondary_snarl_rank      (id_t id) const { return (int64_t) node_assignments[(id-min_node_id) * 6 + 3] - 1;}
+    int64_t get_chain_assignment          (id_t id) const { return (int64_t) node_assignments[(id-min_node_id) * 6 + 4] - 1;}
+    int64_t get_chain_rank                (id_t id) const { return (int64_t) node_assignments[(id-min_node_id) * 6 + 5] - 1;}
 
-    size_t get_chain_assignment(id_t i) const {
-        return chain_assignments[has_chain.rank(i - min_node_id)] - 1;
-    }
-
-    size_t get_chain_rank(id_t i) const {
-        return chain_ranks[has_chain.rank(i - min_node_id)] - 1;
-    }
-
-    size_t get_secondary_assignment(id_t i) const {
-        return secondary_snarl_assignments[has_secondary_snarl.rank(i - min_node_id)] - 1;
-    }
-
-    size_t get_secondary_rank(id_t i) const {
-        return secondary_snarl_ranks[has_secondary_snarl.rank(i - min_node_id)] - 1;
-    }
-
+    void set_primary_snarl_assignment  (id_t id, int64_t val)    {node_assignments[(id-min_node_id) * 6 + 0] = val + 1;}
+    void set_primary_snarl_rank        (id_t id, int64_t val)    {node_assignments[(id-min_node_id) * 6 + 1] = val + 1;}
+    void set_secondary_snarl_assignment(id_t id, int64_t val)    {node_assignments[(id-min_node_id) * 6 + 2] = val + 1;}
+    void set_secondary_snarl_rank      (id_t id, int64_t val)    {node_assignments[(id-min_node_id) * 6 + 3] = val + 1;}
+    void set_chain_assignment          (id_t id, int64_t val)    {node_assignments[(id-min_node_id) * 6 + 4] = val + 1;}
+    void set_chain_rank                (id_t id, int64_t val)    {node_assignments[(id-min_node_id) * 6 + 5] = val + 1;}
 
     friend class SnarlIndex;
     friend class ChainIndex;
