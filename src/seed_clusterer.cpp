@@ -286,7 +286,7 @@ cerr << "Nested positions: " << endl << "\t";
                     //And the node to a snarl
                     if (seen_nodes.count(id) < 1) {
                         seen_nodes.insert(id);
-                        size_t snarl_i = dist_index.get_primary_assignment(id);
+                        size_t snarl_i = dist_index.get_primary_snarl_assignment(id);
                         size_t depth = dist_index.snarl_indexes[snarl_i].depth;
                         if (depth+1 > snarl_to_nodes_by_level.size()) {
                             snarl_to_nodes_by_level.resize(depth+1);
@@ -392,7 +392,7 @@ cerr << "Nested positions: " << endl << "\t";
                     assert(snarl_index.parent_id >= dist_index.min_node_id);
                     assert(snarl_index.parent_id <= dist_index.max_node_id);
 #endif
-                    size_t parent_snarl_i = dist_index.get_primary_assignment( snarl_index.parent_id);
+                    size_t parent_snarl_i = dist_index.get_primary_snarl_assignment( snarl_index.parent_id);
 
                     tree_state.parent_snarl_to_nodes[parent_snarl_i].emplace_back(
                             NetgraphNode (snarl_i, SNARL), cluster_one_snarl(tree_state, snarl_i));
@@ -455,7 +455,7 @@ cerr << "Nested positions: " << endl << "\t";
 
                 // Map it to the snarl number that should be represented by it
                 // (and thus also contain the chain)
-                size_t parent_snarl_i = dist_index.get_primary_assignment(parent_id);
+                size_t parent_snarl_i = dist_index.get_primary_snarl_assignment(parent_id);
 
                 // Register clusters as relevant for that parent snarl.
 
@@ -1196,9 +1196,9 @@ cerr << "\t distances between ranks " << node_rank << " and " << other_rank
 #ifdef DEBUG_CLUSTER
                 cerr << "\tupdating simple snarl distances to the ends of the chain with additional distances " 
                      << add_dist_left_left << " " << add_dist_right_right << endl;
-                MinimumDistanceIndex::SnarlIndex& snarl_index = dist_index.snarl_indexes[dist_index.get_primary_assignment(node_id)];
+                MinimumDistanceIndex::SnarlIndex& snarl_index = dist_index.snarl_indexes[dist_index.get_primary_snarl_assignment(node_id)];
                 assert(dist_index.get_chain_rank(snarl_index.id_in_parent) ==  start_rank);
-                assert(snarl_index.node_length(dist_index.get_primary_rank(node_id)) == node_len);
+                assert(snarl_index.node_length(dist_index.get_primary_snarl_rank(node_id)) == node_len);
                 if (snarl_index.rev_in_parent) {
                     assert(snarl_index.node_length(0) == end_length);
                     assert(snarl_index.node_length(snarl_index.num_nodes*2-1) == start_length);
