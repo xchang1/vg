@@ -48,7 +48,9 @@ SnarlManager HandleGraphSnarlFinder::find_snarls_unindexed() {
     // Holds each snarl and the child snarls we have finished for it so far.
     vector<TranslationFrame> stack;
    
-    traverse_decomposition([&](handle_t chain_start) {
+    traverse_decomposition([&]() {
+        // New connected component at root level. Nothing to do.
+    }, [&](handle_t chain_start) {
         // We got the start of a (possibly empty) chain.
         if (!stack.empty()) {
             // We're in a snarl, so we're a chain that we need for snarl connectivity/classification.

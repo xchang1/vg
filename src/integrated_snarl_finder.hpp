@@ -57,6 +57,7 @@ private:
         unordered_map<handle_t, handle_t>& towards_deepest_leaf,
         vector<pair<size_t, handle_t>>& longest_cycles,
         unordered_map<handle_t, handle_t>& next_along_cycle,
+        const function<void(void)>& new_component,
         const function<void(handle_t)>& begin_chain, const function<void(handle_t)>& end_chain,
         const function<void(handle_t)>& begin_snarl, const function<void(handle_t)>& end_snarl) const;
     
@@ -74,6 +75,8 @@ public:
     /**
      * Visit all snarls and chains, including trivial snarls and single-node
      * empty chains.
+     *
+     * Calls new_component once at the start of each connected component.
      *
      * Calls begin_chain and end_chain when entrering and exiting chains in the
      * traversal. Within each chain, calls begin_snarl and end_snarl when
@@ -93,7 +96,8 @@ public:
      * Start handles are inward facing and end handles are outward facing.
      * Snarls must be oriented forward in their chains.
      */
-    void traverse_decomposition(const function<void(handle_t)>& begin_chain, const function<void(handle_t)>& end_chain,
+    virtual void traverse_decomposition(const function<void(void)>& new_component,
+        const function<void(handle_t)>& begin_chain, const function<void(handle_t)>& end_chain,
         const function<void(handle_t)>& begin_snarl, const function<void(handle_t)>& end_snarl) const;
 };
 

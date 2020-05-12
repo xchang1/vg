@@ -1062,7 +1062,8 @@ IntegratedSnarlFinder::IntegratedSnarlFinder(const HandleGraph& graph) : HandleG
     // Nothing to do!
 }
 
-void IntegratedSnarlFinder::traverse_decomposition(const function<void(handle_t)>& begin_chain, const function<void(handle_t)>& end_chain,
+void IntegratedSnarlFinder::traverse_decomposition(const function<void(void)>& new_component,
+    const function<void(handle_t)>& begin_chain, const function<void(handle_t)>& end_chain,
     const function<void(handle_t)>& begin_snarl, const function<void(handle_t)>& end_snarl) const {
     
     // Do the actual snarl finding work and then walk the bilayered tree.
@@ -1211,6 +1212,7 @@ void IntegratedSnarlFinder::traverse_decomposition(const function<void(handle_t)
                                     towards_deepest_leaf,
                                     longest_cycles,
                                     next_along_cycle,
+                                    new_component,
                                     begin_chain,
                                     end_chain,
                                     begin_snarl,
@@ -1223,6 +1225,7 @@ void IntegratedSnarlFinder::traverse_computed_decomposition(MergedAdjacencyGraph
     unordered_map<handle_t, handle_t>& towards_deepest_leaf,
     vector<pair<size_t, handle_t>>& longest_cycles,
     unordered_map<handle_t, handle_t>& next_along_cycle,
+    const function<void(void)>& new_component,
     const function<void(handle_t)>& begin_chain, const function<void(handle_t)>& end_chain,
     const function<void(handle_t)>& begin_snarl, const function<void(handle_t)>& end_snarl) const {
   
@@ -1237,6 +1240,9 @@ void IntegratedSnarlFinder::traverse_computed_decomposition(MergedAdjacencyGraph
     size_t to_decompose = graph->get_node_count();
     while(visited.size() < to_decompose) {
         // While we haven't touched everything
+        
+        // Announce new connected component
+        new_component();
         
 #ifdef debug
         if (!longest_cycles.empty()) {
