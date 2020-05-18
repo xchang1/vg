@@ -177,22 +177,12 @@ void MinimumDistanceIndex::load(istream& in){
         //Check that the header is correct
         size_t char_index = 0;
         //TODO: We're only checking up to the last two so if the header changes this needs to change too
-        while (in.peek() != EOF && char_index < file_header.size()-2) {
+        while (in.peek() != EOF && char_index < file_header.size()) {
             if ( (char) in.get() != file_header[char_index]) {
                 throw runtime_error ("Distance index file is outdated");
             }
             char_index ++;
         }
-        if (in.peek() == '.') {
-            if ((char) in.get() != '.' || (char)in.get() != '2') {
-                throw runtime_error ("Distance index file is outdated");
-            }
-            include_component = true;
-        } else {
-            cerr << "warning: Loading an out-of-date distance index" << endl;
-            include_component = false;
-        }
-        char_index+=2;
         if (char_index < file_header.size()) {
             throw runtime_error ("Distance index file is outdated");
         }
@@ -200,19 +190,18 @@ void MinimumDistanceIndex::load(istream& in){
 
     node_assignments.load(in); 
 
+    node_to_component.load(in);
+    component_to_chain_index.load(in);
+    component_to_chain_length.load(in);
+
     size_t num_snarls;
     sdsl::read_member(num_snarls, in);
     snarl_indexes.reserve(num_snarls);
     for (size_t i = 0 ; i < num_snarls ; i++) {
         snarl_indexes.emplace_back(); 
-        snarl_indexes.back().load(in, include_component);
+        snarl_indexes.back().load(in);
     }
 
-    if (include_component) {
-        node_to_component.load(in);
-        component_to_chain_index.load(in);
-        component_to_chain_length.load(in);
-    }
     //Load serialized chains
     size_t num_chains;
     sdsl::read_member(num_chains, in);
@@ -246,6 +235,10 @@ void MinimumDistanceIndex::serialize(ostream& out) const {
     out << file_header;
 
     node_assignments.serialize(out);
+
+    node_to_component.serialize(out);
+    component_to_chain_index.serialize(out);
+    component_to_chain_length.serialize(out);
 
     sdsl::write_member(snarl_indexes.size(), out);
     
@@ -1570,7 +1563,7 @@ MinimumDistanceIndex::SnarlIndex::SnarlIndex(
 
 MinimumDistanceIndex::SnarlIndex::SnarlIndex()  {
 }
-void MinimumDistanceIndex::SnarlIndex::load(istream& in, bool include_component){
+void MinimumDistanceIndex::SnarlIndex::load(istream& in){
     /*Load contents of SnarlIndex from serialization */
     
     distances.load(in);
@@ -1583,9 +1576,7 @@ void MinimumDistanceIndex::SnarlIndex::load(istream& in, bool include_component)
     sdsl::read_member(num_nodes, in);
     sdsl::read_member(depth, in);
     sdsl::read_member(is_unary_snarl, in);
-    if (include_component) {
-        sdsl::read_member(is_simple_snarl, in);
-    }
+    sdsl::read_member(is_simple_snarl, in);
     sdsl::read_member(max_width, in);
 }
 

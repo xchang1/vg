@@ -125,7 +125,7 @@ class MinimumDistanceIndex {
             SnarlIndex();
 
             //Load data from serialization
-            void load(istream& in, bool include_component);
+            void load(istream& in);
 
             ///Serialize the snarl
             void serialize(ostream& out) const;
@@ -363,10 +363,7 @@ class MinimumDistanceIndex {
 
 
     //Header for the serialized file
-    string file_header = "distance index version 2.2";
-    //TODO: version 2 (no .anything) doesn't include component but we'll still accept it
-    //version 2.1 doesn't include snarl index.is_simple_snarl and will break if we try to load it 
-    bool include_component; //TODO: This is true for version 2.2 so it includes node_to_component, etc. 
+    string file_header = "distance index version 3";
 
     ////// Private helper functions
  
