@@ -1526,6 +1526,120 @@ NetGraph::NetGraph(const Visit& start, const Visit& end,
     }
    
 }
+
+NetGraph::NetGraph(const handle_t& start, const handle_t& end,
+                   const vector<pair<const handle_t&, const handle_t&>>& children,
+                   const HandleGraph* graph,
+                   const MinimumDistanceIndex& distance_index,
+                   bool use_internal_connectivity = false) :
+    graph(graph),
+    start(start),
+    end(end),
+    use_internal_connectivity(use_internal_connectivity) {
+
+    for (pair<const handle_t&, const handle_t&> child_handles : children) {
+        id_t child_id = graph->get_id(child_handles.first);
+        id_t child_end_id = graph->get_id(child_handles.second);
+        MinimumDistanceIndex::SnarlIndex& child_snarl_index = distance_index.snarl_indexes[
+                distance_index.get_primary_assignment(child_id)];
+        if (child_handles.first != child_handles.second) {
+            //If this is a snarl or chain
+            if (distance_index.in_chain(child_id)) {
+                //If this child is a chain
+
+                // Save the links that let us cross the chain.
+                chain_ends_by_start[child_handles.first] = child_handles.second;
+                chain_end_rewrites[graph->flip(child_handles.second)] = graph->flip(child_handles.first);
+
+#ifdef debug
+                cerr << "\tAdd child chain " << graph->get_id(child_handles.first) << (graph->get_is_reverse(child_hand     les.first) ? "-" : "+")
+                    << " -> " << graph->get_id(child_handles.second) << (graph->get_is_reverse(child_handles.second) ?      "-" : "+") << endl;
+#endif
+                MinimumDistanceIndex::ChainIndex& chain_index = distance_index.chain_indexes[
+                    distance_index.get_chain_assignment(child_id)];
+
+                if (use_internal_connectivity) {
+
+                    // Determine child snarl connectivity.
+                    bool connected_left_left = chain_index.loop_fd.front() != 0;
+                    bool connected_right_right = chain_index.loop_rev.back() != 0;
+                    bool connected_left_right = true;
+
+                    // Save the connectivity
+                    connectivity[graph->get_id(chain_start_handle)] = tie(connected_left_left,
+                                                                          connected_right_right, connected_left_right);
+                } else {
+                    // Act like a normal connected-through node.
+                    connectivity[graph->get_id(chain_start_handle)] = make_tuple(false, false, true);
+                }
+            } else if (!snarl_index.is_unary_snarl) {
+                //If this child is a non-unary snarl
+
+                // Save the links that let us cross the snarl.
+                chain_ends_by_start[child_handles.first] = child_handles.second;
+                chain_end_rewrites[graph->flip(child_handles.second)] = graph->flip(child_handles.first);
+                if (use_internal_connectivity) {
+                    // Save its connectivity
+
+                    size_t end_rank_out = child_snarl_index.num_nodes * 2 - 2;
+
+                    //Connected start into snarl => start out of snarl
+                    bool start_self_reachable = child_snarl_index.snarl_distance(0, 1) != -1;
+                    //Connected end into snarl => end out of snarl
+                    bool end_self_reachable = child_snarl_index.snarl_distance(end_rank_out+1, end_rank_out) != -1;
+                    //Connected start into snarl => end out of snarl
+                    bool start_end_reachable  = child_snarl_index.snarl_distance(0, end_rank_out) != -1;
+                    connectivity[child_id] = make_tuple(start_self_reachable, end_self_reachable,
+                                                        start_end_reachable);
+                } else {
+                    // Use the connectivity of an ordinary node that has a different
+                    // other side. Don't set connected_start_end because, for a real
+                    // unary snarl, the end and the start are the same, so that
+                    // means you can turn aroiund.
+
+                    //Connected start into snarl => end out of snarl
+                    bool start_end_reachable  = child_snarl_index.snarl_distance(0, end_rank_out) != -1;
+                    connectivity[snarl_id] = make_tuple(false, false, start_end_reachable);
+                }
+#ifdef debug
+                cerr << "\tAdd child snarl " << graph->get_id(child_handles.first) << (graph->get_is_reverse(child_hand     les.first) ? "-" : "+")
+                    << " -> " << graph->get_id(child_handles.second) << (graph->get_is_reverse(child_handles.second) ?      "-" : "+") << endl;
+#endif
+            } else {
+                //If this child is a unary snarl
+
+                // Save it as a unary snarl
+                unary_boundaries.insert(child_handle);
+
+#ifdef debug
+                cerr << "\tAdd unary child snarl on " << child_id << (graph->get_is_reverse(child_handle) ? "-" : "+")      << endl;
+#endif
+
+                if (use_internal_connectivity) {
+                    // Save its connectivity
+
+                    size_t end_rank_out = child_snarl_index.num_nodes * 2 - 2;
+
+                    //Connected start into snarl => start out of snarl
+                    bool start_self_reachable = child_snarl_index.snarl_distance(0, 1) != -1;
+                    //Connected end into snarl => end out of snarl
+                    bool end_self_reachable = child_snarl_index.snarl_distance(end_rank_out+1, end_rank_out) != -1;
+                    //Connected start into snarl => end out of snarl
+                    bool start_end_reachable  = child_snarl_index.snarl_distance(0, end_rank_out) != -1;
+                    connectivity[child_id] = make_tuple(start_self_reachable, end_self_reachable,
+                                                        start_end_reachable);
+                } else {
+                    // Use the connectivity of an ordinary node that has a different
+                    // other side. Don't set connected_start_end because, for a real
+                    // unary snarl, the end and the start are the same, so that
+                    // means you can turn aroiund.
+                    connectivity[snarl_id] = make_tuple(false, false, false);
+                }
+            }
+        } 
+    }
+}
+
     
 void NetGraph::add_unary_child(const Snarl* unary) {
     // For each unary snarl, make its bounding handle
