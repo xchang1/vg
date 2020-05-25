@@ -98,8 +98,43 @@ class MinimumDistanceIndex {
         return static_cast<int64_t>(std::min(static_cast<uint64_t>(x), static_cast<uint64_t>(y)));
     }
 
+    ///Is the snarl headed by this node connected from the start node in to the start node out
+    bool snarl_connected_start_start(id_t id) const{
+        return snarl_indexes[get_primary_assignment(id)].snarl_distance(0,1) != -1;
+    }
+    ///Is the snarl headed by this node connected from the start node in to the end node out
+    bool snarl_connected_start_end(id_t id) const{
+        if (snarl_indexes[get_primary_assignment(id)].is_unary_snarl) {
+            return snarl_indexes[get_primary_assignment(id)].snarl_distance(0,1) != -1;
+        } else {
+            return snarl_indexes[get_primary_assignment(id)].snarl_distance(0,snarl_indexes[get_primary_assignment(id)].num_nodes*2-2) != -1;
+        }
+    }
+    ///Is the snarl headed by this node connected from the end node in to the end node out
+    bool snarl_connected_end_end(id_t id) const{
+        if (snarl_indexes[get_primary_assignment(id)].is_unary_snarl) {
+            return snarl_indexes[get_primary_assignment(id)].snarl_distance(0,1) != -1;
+        } else {
+            return snarl_indexes[get_primary_assignment(id)].snarl_distance(snarl_indexes[get_primary_assignment(id)].num_nodes*2-1,snarl_indexes[get_primary_assignment(id)].num_nodes*2-2) != -1;
+        }
+    }
+
+    ///Is the chain headed by this node connected from the start node in to the start node out
+    bool chain_connected_start_start(id_t id) const{
+        return chain_indexes[get_chain_assignment(id)].loop_fd[0] != 0;
+    }
+    ///Is the chain headed by this node connected from the end node in to the end node out
+    bool chain_connected_end_end(id_t id) const{
+        return chain_indexes[get_chain_assignment(id)].loop_rev[chain_indexes[get_chain_assignment(id)].loop_rev.size()] != 0;
+    }
+
+    //Is this node a boundary node of a snarl in a chain?
+    bool in_chain(id_t id) const {
+        return has_chain_bv[id - min_node_id];
+    }
+
     ///print the distance index for debugging
-    void print_self();
+    void print_self() const;
     // Prints the number of nodes in each snarl netgraph and number of snarls in each chain
     void print_snarl_stats();
 
@@ -167,7 +202,7 @@ class MinimumDistanceIndex {
             void insert_distance(size_t start, size_t end, int64_t dist);
 
 
-            void print_self();
+            void print_self() const;
 
         protected:
  
@@ -265,7 +300,7 @@ class MinimumDistanceIndex {
                 return prefix_sum[prefix_sum.size() - 1] - 1;
             }
 
-            void print_self();
+            void print_self() const;
 
         protected:
 
@@ -454,6 +489,7 @@ class MinimumDistanceIndex {
                 pair<size_t, bool> common_ancestor, pos_t& pos, bool rev) const;
 
 
+
     /// Get the index into chain_indexes/rank in chain of node i.
     /// Detects and throws an error if node i never got assigned to a snarl.
     size_t get_primary_assignment(id_t i) const {
@@ -465,6 +501,7 @@ class MinimumDistanceIndex {
         }
         return primary_snarl_assignments[i - min_node_id] - 1;
     }
+
 
     size_t get_primary_rank(id_t i) const {
         return primary_snarl_ranks[i - min_node_id] - 1;

@@ -1617,7 +1617,7 @@ int64_t MinimumDistanceIndex::min_pos (vector<int64_t> vals) {
    
 };
 
-void MinimumDistanceIndex::print_self() {
+void MinimumDistanceIndex::print_self() const{
     cerr << "node id \t primary snarl \t rank \t secondary snarl \t rank \t chain \t rank" << endl;
     for (size_t i = 0 ; i < primary_snarl_assignments.size() ; i ++ ) {
         if (primary_snarl_assignments[i] != 0){
@@ -1815,7 +1815,7 @@ pair<int64_t, int64_t> MinimumDistanceIndex::SnarlIndex::dist_to_ends(size_t ran
 }
 
 
-void MinimumDistanceIndex::SnarlIndex::print_self() {
+void MinimumDistanceIndex::SnarlIndex::print_self() const {
     //Print the nodes contained in SnarlDistance
     cerr << endl;
     if (is_unary_snarl) {
@@ -1991,7 +1991,7 @@ int64_t MinimumDistanceIndex::ChainIndex::chain_distance(
 }
 
 
-void MinimumDistanceIndex::ChainIndex::print_self() {
+void MinimumDistanceIndex::ChainIndex::print_self() const {
     //Print the contenst of ChainDistance
    
     if (is_looping_chain) {
