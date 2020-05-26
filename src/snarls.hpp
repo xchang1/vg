@@ -21,13 +21,13 @@
 #include <vg/vg.pb.h>
 #include "hash_map.hpp"
 #include "cactus.hpp"
-#include "min_distance.hpp"
 
 namespace vg {
 
 using namespace std;
 
 class SnarlManager;
+class MinimumDistanceIndex;
 
 /**
  * Represents a strategy for finding (nested) sites in a vg graph that can be described
@@ -288,12 +288,13 @@ public:
         }
     }
 
-    NetGraph(const handle_t& start, const handle_t& end, 
-             const vector<pair<const handle_t&, const handle_t&>>& children,
+    //Make a net graph from the given children, using the distance index to determine connectivity
+    NetGraph(const handle_t start, const handle_t end,
+             const vector<pair<const handle_t, const handle_t>>& children,
              const HandleGraph* graph,
-             const MinimumDistanceIndex& distance_index,
-             bool use_internal_connectivity = false);
-            
+             const MinimumDistanceIndex* distance_index,
+             bool use_internal_connectivity = false);           
+
     /// Make a net graph from the given chains and unary snarls (as raw values) in the given backing graph.
     /// Mostly for testing.
     NetGraph(const Visit& start, const Visit& end,
