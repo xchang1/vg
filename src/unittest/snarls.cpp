@@ -868,9 +868,87 @@ namespace vg {
                 }
             }
         }
+
+        TEST_CASE( "NetGraph with distance index can handle disconnected chain bounds",
+                  "[snarls][netgraph]" ) {
+        
+        
+            // We will have a snarl 1 to 2, and within it a chain of 3 to 4 and
+            // 4 to 5 (both trivial)
+            VG graph;
+                
+            Node* n1 = graph.create_node("GCA");
+            Node* n2 = graph.create_node("T");
+            Node* n3 = graph.create_node("G");
+            Node* n4 = graph.create_node("CTGA");
+            Node* n5 = graph.create_node("GCA");
+            
+            Edge* e1 = graph.create_edge(n1, n2);
+            Edge* e2 = graph.create_edge(n3, n4);
+            Edge* e3 = graph.create_edge(n4, n5);
+            
+            for (bool do_start : {false, true}) {
+
+                // Attach only start or end of chain to parent snarl
+                Edge* e4 = do_start ? graph.create_edge(n1, n3) : graph.create_edge(n5, n2);
+                
+                vector<pair<const handle_t, const handle_t>> children;
+                children.push_back(make_pair(graph.get_handle(3, false), graph.get_handle(5, false)));
+
+                Snarl top_snarl;
+                top_snarl.mutable_start()->set_node_id(n1->id());
+                top_snarl.mutable_end()->set_node_id(n2->id());
+
+                CactusSnarlFinder bubble_finder(graph);
+                SnarlManager snarl_manager = bubble_finder.find_snarls();
+                MinimumDistanceIndex dist_index (&graph, &snarl_manager); 
+                
+                // Make a net graph
+                NetGraph net_graph(graph.get_handle(top_snarl.start().node_id(), top_snarl.start().backward()), 
+                                   graph.get_handle(top_snarl.end().node_id(), top_snarl.end().backward()), 
+                                   children, &graph, &dist_index, false);
+                
+                SECTION( "The top-level NetGraph has 3 nodes" ) {
+                    unordered_set<handle_t> nodes;
+                    size_t node_count = 0;
+                    net_graph.for_each_handle([&](const handle_t& handle) {
+                        nodes.insert(handle);
+                        node_count++;
+                    });
+                    REQUIRE(nodes.size() == node_count);
+                    
+                    REQUIRE(nodes.size() == 3);
+                    
+                    SECTION( "The nodes are numbered 1, 2, and 3" ) {
+                        REQUIRE(nodes.count(net_graph.get_handle(1, false)) == 1);
+                        REQUIRE(nodes.count(net_graph.get_handle(2, false)) == 1);
+                        REQUIRE(nodes.count(net_graph.get_handle(3, false)) == 1);
+                    }
+                }
+                
+                SECTION( "The top-level NetGraph has 2 edges" ) {
+                    unordered_set<pair<handle_t, handle_t>> edges;
+                    for (auto& id : {1, 2, 3}) {
+                        // Go through the nodes we should have manually.
+                        handle_t handle = net_graph.get_handle(id, false);
+                    
+                        // Save all the edges off of each node
+                        net_graph.follow_edges(handle, false, [&](const handle_t& other) {
+                            edges.insert(net_graph.edge_handle(handle, other));
+                        });
+                        net_graph.follow_edges(handle, true, [&](const handle_t& other) {
+                            edges.insert(net_graph.edge_handle(other, handle));
+                        });
+                    }
+                    
+                    REQUIRE(edges.size() == 2);
+                }
+            }
+        }
         
         TEST_CASE( "NetGraph can handle no connectivity",
                   "[snarls][netgraph]" ) {
+            //TODO: Copy this one for distance index
         
         
             // This graph will have a snarl from 1 to 8, a snarl from 2 to 7,
@@ -1042,7 +1120,106 @@ namespace vg {
             }
         
         }
+
+        TEST_CASE( "NetGraph with distance index finds all edges correctly when traversing in all directions",
+                  "[snarls][netgraph]" ) {
         
+        
+            // This graph will have a snarl from 1 to 8, a snarl from 2 to 7,
+            // and a snarl from 3 to 5, all nested in each other.
+            VG graph;
+                
+            Node* n1 = graph.create_node("GCA");
+            Node* n2 = graph.create_node("T");
+            Node* n3 = graph.create_node("G");
+            Node* n4 = graph.create_node("CTGA");
+            Node* n5 = graph.create_node("GCA");
+            Node* n6 = graph.create_node("T");
+            Node* n7 = graph.create_node("G");
+            Node* n8 = graph.create_node("CTGA");
+            
+            Edge* e1 = graph.create_edge(n1, n2);
+            Edge* e2 = graph.create_edge(n1, n8);
+            Edge* e3 = graph.create_edge(n2, n3);
+            Edge* e4 = graph.create_edge(n2, n6);
+            Edge* e5 = graph.create_edge(n3, n4);
+            // Add an extra reversing edge so you can leave out the start
+            Edge* eRev = graph.create_edge(n3, n3, false, true);
+            // Add an extra reversing edge so you can leave out the end
+            Edge* eRev2 = graph.create_edge(n5, n5, true, false);
+            Edge* e6 = graph.create_edge(n3, n5);
+            Edge* e7 = graph.create_edge(n4, n5);
+            Edge* e8 = graph.create_edge(n5, n7);
+            Edge* e9 = graph.create_edge(n6, n7);
+            Edge* e10 = graph.create_edge(n7, n8);
+            
+            vector<pair<const handle_t, const handle_t>> children;
+            children.push_back(make_pair(graph.get_handle(2, false), graph.get_handle(7, false)));
+
+            Snarl top_snarl;
+            top_snarl.mutable_start()->set_node_id(n1->id());
+            top_snarl.mutable_end()->set_node_id(n8->id());
+
+            CactusSnarlFinder bubble_finder(graph);
+            SnarlManager snarl_manager = bubble_finder.find_snarls();
+            MinimumDistanceIndex dist_index (&graph, &snarl_manager); 
+            
+            // Make a net graph
+            NetGraph net_graph(graph.get_handle(top_snarl.start().node_id(), top_snarl.start().backward()), 
+                               graph.get_handle(top_snarl.end().node_id(), top_snarl.end().backward()), 
+                               children, &graph, &dist_index, true);
+        
+            // Make a handle to the nested child snarl
+            handle_t nested_fwd = net_graph.get_handle(n2->id(), false);
+            
+            // ANd reverse it
+            auto nested_rev = net_graph.flip(nested_fwd);
+            
+            SECTION( "Forward handle sees 1 fwd and 8 rev on its left" ) {
+                unordered_set<handle_t> seen;
+                net_graph.follow_edges(nested_fwd, true, [&](const handle_t& other) {
+                    seen.insert(other);
+                });
+                
+                REQUIRE(seen.size() == 2);
+                REQUIRE(seen.count(net_graph.get_handle(n1->id(), false)) == 1);
+                REQUIRE(seen.count(net_graph.get_handle(n8->id(), true)) == 1);
+            }
+            
+            SECTION( "Forward handle sees 1 rev and 8 fwd on its right" ) {
+                unordered_set<handle_t> seen;
+                net_graph.follow_edges(nested_fwd, false, [&](const handle_t& other) {
+                    seen.insert(other);
+                });
+                
+                REQUIRE(seen.size() == 2);
+                REQUIRE(seen.count(net_graph.get_handle(n1->id(), true)) == 1);
+                REQUIRE(seen.count(net_graph.get_handle(n8->id(), false)) == 1);
+            }
+            
+            SECTION( "Reverse handle sees 1 fwd and 8 rev on its left" ) {
+                unordered_set<handle_t> seen;
+                net_graph.follow_edges(nested_rev, true, [&](const handle_t& other) {
+                    seen.insert(other);
+                });
+                
+                REQUIRE(seen.size() == 2);
+                REQUIRE(seen.count(net_graph.get_handle(n1->id(), false)) == 1);
+                REQUIRE(seen.count(net_graph.get_handle(n8->id(), true)) == 1);
+            }
+            
+            SECTION( "Reverse handle sees 1 rev and 8 fwd on its right" ) {
+                unordered_set<handle_t> seen;
+                net_graph.follow_edges(nested_rev, false, [&](const handle_t& other) {
+                    seen.insert(other);
+                });
+                
+                REQUIRE(seen.size() == 2);
+                REQUIRE(seen.count(net_graph.get_handle(n1->id(), true)) == 1);
+                REQUIRE(seen.count(net_graph.get_handle(n8->id(), false)) == 1);
+            }
+        
+        }
         TEST_CASE( "NetGraph finds all edges correctly when traversing in all directions",
                   "[snarls][netgraph]" ) {
         

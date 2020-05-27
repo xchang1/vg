@@ -1563,7 +1563,7 @@ NetGraph::NetGraph(const handle_t start, const handle_t end,
                 chain_end_rewrites[graph->flip(child_handles.second)] = graph->flip(child_handles.first);
 
 #ifdef debug
-                cerr << "\tAdd child chain " << graph->get_id(child_handles.first) << (graph->get_is_reverse(child_hand     les.first) ? "-" : "+")
+                cerr << "\tAdd child chain " << graph->get_id(child_handles.first) << (graph->get_is_reverse(child_handles.first) ? "-" : "+")
                     << " -> " << graph->get_id(child_handles.second) << (graph->get_is_reverse(child_handles.second) ?      "-" : "+") << endl;
 #endif
 
@@ -1606,7 +1606,7 @@ NetGraph::NetGraph(const handle_t start, const handle_t end,
                     connectivity[child_id] = make_tuple(false, false, true);
                 }
 #ifdef debug
-                cerr << "\tAdd child snarl " << graph->get_id(child_handles.first) << (graph->get_is_reverse(child_hand     les.first) ? "-" : "+")
+                cerr << "\tAdd child snarl " << graph->get_id(child_handles.first) << (graph->get_is_reverse(child_handles.first) ? "-" : "+")
                     << " -> " << graph->get_id(child_handles.second) << (graph->get_is_reverse(child_handles.second) ?      "-" : "+") << endl;
 #endif
             }

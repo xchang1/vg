@@ -1835,7 +1835,7 @@ void MinimumDistanceIndex::SnarlIndex::print_self() const {
 
     cerr << "Node lengths; " << endl;
     for (size_t n = 0 ; n < num_nodes; n++) {
-        cerr << distances[n]-1 << "\t";
+        cerr << ((int) distances[n])-1 << "\t";
     }
     cerr << endl;
     cerr << "Distances:" << endl;
