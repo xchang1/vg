@@ -458,6 +458,11 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
     // Grab all the scores in order for MAPQ computation.
     vector<double> scores;
     scores.reserve(alignments.size());
+
+    auto estimate_gap_distance = [&](pos_t pos1, pos_t pos2, size_t read_length){
+        int64_t dist = distance_index.min_distance(pos1, pos2);
+        return dist == -1 ? std::numeric_limits<size_t>::max() : (size_t) dist;
+    };
     
     vector<double> probability_mapping_lost;
     process_until_threshold_a(alignments, (std::function<double(size_t)>) [&](size_t i) -> double {
@@ -467,10 +472,10 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
         // Called in score order
         
         // Remember the score at its rank
-        scores.emplace_back(alignments[alignment_num].score());
+        scores.emplace_back((double) QualAdjAligner().score_gappy_alignment(alignments[alignment_num], estimate_gap_distance));
         
         // Remember the output alignment
-        mappings.emplace_back(alignments[alignment_num]);//TODO:Used to move this
+        mappings.emplace_back(std::move(alignments[alignment_num]));
         mappings_to_source.push_back(alignment_num);
         probability_mapping_lost.push_back(probability_alignment_lost[alignment_num]);
         
@@ -616,41 +621,7 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
     funnel.to_dot(cerr);
 #endif
 
-    vector<Alignment> rescored_alignments;
-    rescored_alignments.reserve(alignments.size());
-    vector<Alignment> rescored_mappings;
-    rescored_mappings.reserve(min(alignments.size(), max_multimaps));
-
-    auto estimate_gap_distance = [&](pos_t pos1, pos_t pos2, size_t read_length){
-        int64_t dist = distance_index.min_distance(pos1, pos2);
-        return dist == -1 ? std::numeric_limits<size_t>::max() : (size_t) dist;
-    };
-
-    process_until_threshold_a(alignments, 
-    (std::function<double(size_t)>) [&](size_t i) -> int32_t {
-        return QualAdjAligner().score_gappy_alignment(alignments.at(i), estimate_gap_distance);
-    }, 0, 1, max_multimaps, 
-    [&](size_t alignment_num) {
-        // This alignment makes it
-        // Called in score order
-        
-        // Remember the output alignment
-        rescored_mappings.emplace_back(std::move(alignments[alignment_num]));
-        
-        return true;
-    }, [&](size_t alignment_num) {
-        // We already have enough alignments, although this one has a good score
-        
-        if (track_provenance) {
-            funnel.fail("max-multimaps", alignment_num);
-        }
-    }, [&](size_t alignment_num) {
-        // This alignment does not have a sufficiently good score
-        // Score threshold is 0; this should never happen
-        assert(false);
-    });
-
-    return rescored_mappings;
+    return mappings;
 }
 
 //-----------------------------------------------------------------------------
