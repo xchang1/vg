@@ -466,7 +466,7 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
     
     vector<double> probability_mapping_lost;
     process_until_threshold_a(alignments, (std::function<double(size_t)>) [&](size_t i) -> double {
-        return alignments.at(i).score();
+        return QualAdjAligner().score_gappy_alignment(alignments[i], estimate_gap_distance);
     }, 0, 1, max_multimaps, [&](size_t alignment_num) {
         // This alignment makes it
         // Called in score order
