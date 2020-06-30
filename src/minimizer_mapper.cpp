@@ -466,7 +466,7 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
     
     vector<double> probability_mapping_lost;
     process_until_threshold_a(alignments, (std::function<double(size_t)>) [&](size_t i) -> double {
-        return QualAdjAligner().score_gappy_alignment(alignments[i], estimate_gap_distance);
+        return alignments.at(i).score();
     }, 0, 1, max_multimaps, [&](size_t alignment_num) {
         // This alignment makes it
         // Called in score order
@@ -515,8 +515,13 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
     size_t winning_index;
     assert(!mappings.empty());
     // Compute MAPQ if not unmapped. Otherwise use 0 instead of the 50% this would give us.
+    vector<double> best_two_scores;
+    best_two_scores.emplace_back(scores.front());
+    if (scores.size() >=2) {
+        best_two_scores.emplace_back(scores[1]);
+    }
     double mapq = (mappings.front().path().mapping_size() == 0) ? 0 : 
-        get_regular_aligner()->maximum_mapping_quality_exact(scores, &winning_index) / 2;
+        get_regular_aligner()->maximum_mapping_quality_exact(best_two_scores, &winning_index) / 2;
 
 #ifdef debug
     cerr << "uncapped MAPQ is " << mapq << endl;
