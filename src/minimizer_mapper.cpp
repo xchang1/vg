@@ -466,7 +466,7 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
     
     vector<double> probability_mapping_lost;
     process_until_threshold_a(alignments, (std::function<double(size_t)>) [&](size_t i) -> double {
-        return alignments.at(i).score();
+        return (double) QualAdjAligner().score_gappy_alignment(alignments[i], estimate_gap_distance);
     }, 0, 1, max_multimaps, [&](size_t alignment_num) {
         // This alignment makes it
         // Called in score order
@@ -491,7 +491,7 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
         // We already have enough alignments, although this one has a good score
         
         // Remember the score at its rank anyway
-        scores.emplace_back(alignments[alignment_num].score());
+        scores.emplace_back((double) QualAdjAligner().score_gappy_alignment(alignments[alignment_num], estimate_gap_distance));
         
         if (track_provenance) {
             funnel.fail("max-multimaps", alignment_num);
@@ -515,13 +515,8 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
     size_t winning_index;
     assert(!mappings.empty());
     // Compute MAPQ if not unmapped. Otherwise use 0 instead of the 50% this would give us.
-    vector<double> best_two_scores;
-    best_two_scores.emplace_back(scores.front());
-    if (scores.size() >=2) {
-        best_two_scores.emplace_back(scores[1]);
-    }
     double mapq = (mappings.front().path().mapping_size() == 0) ? 0 : 
-        get_regular_aligner()->maximum_mapping_quality_exact(best_two_scores, &winning_index) / 2;
+        get_regular_aligner()->maximum_mapping_quality_exact(scores, &winning_index) / 2;
 
 #ifdef debug
     cerr << "uncapped MAPQ is " << mapq << endl;
@@ -1179,6 +1174,10 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
     vector<tuple<size_t, size_t, bool>> unpaired_alignments;
     size_t unpaired_count_1 = 0;
     size_t unpaired_count_2 = 0;
+    auto estimate_gap_distance = [&](pos_t pos1, pos_t pos2, size_t read_length){
+        int64_t dist = distance_index.min_distance(pos1, pos2);
+        return dist == -1 ? std::numeric_limits<size_t>::max() : (size_t) dist;
+    };
 
     for (size_t fragment_num = 0 ; fragment_num < alignments.size() ; fragment_num ++ ) {
         //Get pairs of plausible alignments
@@ -1201,7 +1200,10 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
                     double dev = fragment_distance - fragment_length_distr.mean();
                     double fragment_length_log_likelihood = -dev * dev / (2.0 * fragment_length_distr.stdev() * fragment_length_distr.stdev());
                     if (fragment_distance != std::numeric_limits<int64_t>::max() ) {
-                        double score = alignment1.score() + alignment2.score() + (fragment_length_log_likelihood / get_aligner()->log_base);
+                        double score =
+                            (double) QualAdjAligner().score_gappy_alignment(alignment1, estimate_gap_distance) + 
+                            (double) QualAdjAligner().score_gappy_alignment(alignment2, estimate_gap_distance) +
+                            (fragment_length_log_likelihood / get_aligner()->log_base);
                         alignment_groups[fragment_num].first[i1].emplace_back(paired_alignments.size());
                         alignment_groups[fragment_num].second[i2].emplace_back(paired_alignments.size());
                         paired_alignments.emplace_back(make_pair(fragment_num, i1), make_pair(fragment_num, i2));
@@ -1418,7 +1420,10 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
 
                     double dev = fragment_dist - fragment_length_distr.mean();
                     double fragment_length_log_likelihood = -dev * dev / (2.0 * fragment_length_distr.stdev() * fragment_length_distr.stdev());
-                    double score = mapped_aln.score() + rescued_aln.score() + (fragment_length_log_likelihood / get_aligner()->log_base);
+                    double score =
+                        (double) QualAdjAligner().score_gappy_alignment(mapped_aln, estimate_gap_distance) + 
+                        (double) QualAdjAligner().score_gappy_alignment(rescued_aln, estimate_gap_distance) 
+                        + (fragment_length_log_likelihood / get_aligner()->log_base);
 
                     set_annotation(mapped_aln, "rescuer", true);
                     set_annotation(rescued_aln, "rescued", true);
