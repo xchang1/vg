@@ -466,7 +466,7 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
     
     vector<double> probability_mapping_lost;
     process_until_threshold_a(alignments, (std::function<double(size_t)>) [&](size_t i) -> double {
-        return (double) QualAdjAligner().score_gappy_alignment(alignments[i], estimate_gap_distance);
+        return alignments[i].score();
     }, 0, 1, max_multimaps, [&](size_t alignment_num) {
         // This alignment makes it
         // Called in score order
@@ -1159,6 +1159,8 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
     // Grab all the scores in order for MAPQ computation.
     vector<double> paired_scores;
     paired_scores.reserve(alignments.size());
+    vector<double> paired_qual_adj_scores;
+    paired_qual_adj_scores.reserve(alignments.size());
     vector<int64_t> fragment_distances;
     fragment_distances.reserve(alignments.size());
 
@@ -1200,7 +1202,9 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
                     double dev = fragment_distance - fragment_length_distr.mean();
                     double fragment_length_log_likelihood = -dev * dev / (2.0 * fragment_length_distr.stdev() * fragment_length_distr.stdev());
                     if (fragment_distance != std::numeric_limits<int64_t>::max() ) {
-                        double score =
+                        double score = alignment1.score() + alignment2.score() +
+                            (fragment_length_log_likelihood / get_aligner()->log_base);
+                        double qual_score =
                             (double) QualAdjAligner().score_gappy_alignment(alignment1, estimate_gap_distance) + 
                             (double) QualAdjAligner().score_gappy_alignment(alignment2, estimate_gap_distance) +
                             (fragment_length_log_likelihood / get_aligner()->log_base);
@@ -1208,6 +1212,7 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
                         alignment_groups[fragment_num].second[i2].emplace_back(paired_alignments.size());
                         paired_alignments.emplace_back(make_pair(fragment_num, i1), make_pair(fragment_num, i2));
                         paired_scores.emplace_back(score);
+                        paired_qual_adj_scores.emplace_back(qual_score);
                         fragment_distances.emplace_back(fragment_distance);
                         better_cluster_count_alignment_pairs.emplace_back(better_cluster_count[fragment_num]);
 
@@ -1420,7 +1425,9 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
 
                     double dev = fragment_dist - fragment_length_distr.mean();
                     double fragment_length_log_likelihood = -dev * dev / (2.0 * fragment_length_distr.stdev() * fragment_length_distr.stdev());
-                    double score =
+                    double score = mapped_aln.score()+rescued_aln.score()
+                        + (fragment_length_log_likelihood / get_aligner()->log_base);
+                    double qual_score =
                         (double) QualAdjAligner().score_gappy_alignment(mapped_aln, estimate_gap_distance) + 
                         (double) QualAdjAligner().score_gappy_alignment(rescued_aln, estimate_gap_distance) 
                         + (fragment_length_log_likelihood / get_aligner()->log_base);
@@ -1441,6 +1448,7 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
                                 make_pair(mapped_index, rescued_index) : make_pair(rescued_index, mapped_index);
                     paired_alignments.push_back(index_pair);
                     paired_scores.emplace_back(score);
+                    paired_qual_adj_scores.emplace_back(qual_score);
                     fragment_distances.emplace_back(fragment_dist);
                     better_cluster_count_alignment_pairs.emplace_back(0);
                     rescued_from.push_back(found_first); 
@@ -1514,7 +1522,7 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
         pair<pair<size_t, size_t>, pair<size_t, size_t>> index_pair = paired_alignments[alignment_num];
         
         // Remember the score at its rank
-        scores.emplace_back(paired_scores[alignment_num]);
+        scores.emplace_back(paired_qual_adj_scores[alignment_num]);
         distances.emplace_back(fragment_distances[alignment_num]);
         // Remember the output alignment
         mappings.first.emplace_back( alignments[index_pair.first.first].first[index_pair.first.second]);
@@ -1526,8 +1534,8 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
             //get the group scores for mapq
 
             //Get the scores of 
-            scores_group_1.push_back(paired_scores[alignment_num]);
-            scores_group_2.push_back(paired_scores[alignment_num]);
+            scores_group_1.push_back(paired_qual_adj_scores[alignment_num]);
+            scores_group_2.push_back(paired_qual_adj_scores[alignment_num]);
 
             //The indices (into paired_alignments) of pairs with the same first read as this
             vector<size_t>& alignment_group_1 = alignment_groups[index_pair.first.first].first[index_pair.first.second];
@@ -1535,12 +1543,12 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
 
             for (size_t other_alignment_num : alignment_group_1) {
                 if (other_alignment_num != alignment_num) {
-                    scores_group_1.push_back(paired_scores[other_alignment_num]);
+                    scores_group_1.push_back(paired_qual_adj_scores[other_alignment_num]);
                 }
             }
             for (size_t other_alignment_num : alignment_group_2) {
                 if (other_alignment_num != alignment_num) {
-                    scores_group_2.push_back(paired_scores[other_alignment_num]);
+                    scores_group_2.push_back(paired_qual_adj_scores[other_alignment_num]);
                 }
             }
         }
@@ -1571,7 +1579,7 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
         // We already have enough alignments, although this one has a good score
         
         // Remember the score at its rank anyway
-        scores.emplace_back(paired_scores[alignment_num]);
+        scores.emplace_back(paired_qual_adj_scores[alignment_num]);
         distances.emplace_back(fragment_distances[alignment_num]);
         
         if (track_provenance) {
