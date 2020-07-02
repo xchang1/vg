@@ -315,6 +315,7 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
         aln.set_read_group(read_group);
     }
     
+    QualAdjAligner qual_aligner;
     // Go through the gapless extension groups in score order.
     process_until_threshold_b(cluster_extensions, cluster_extension_scores,
         extension_set_score_threshold, 2, max_alignments,
@@ -382,8 +383,8 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
             
             
             
-            if (QualAdjAligner().score_ungapped_alignment(second_best_alignment) != 0 && 
-                QualAdjAligner().score_ungapped_alignment(second_best_alignment) > QualAdjAligner().score_ungapped_alignment(best_alignment) * 0.8) {
+            if (qual_aligner.score_ungapped_alignment(second_best_alignment) != 0 && 
+                qual_aligner.score_ungapped_alignment(second_best_alignment) > qual_aligner.score_ungapped_alignment(best_alignment) * 0.8) {
                 //If there is a second extension and its score is at least half of the best score, bring it along
 #ifdef debug
                 cerr << "Found second best alignment from gapless extension " << extension_num << ": " << pb2json(second_best_alignment) << endl;
@@ -395,7 +396,7 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
                 if (track_provenance) {
     
                     funnel.project(extension_num);
-                    funnel.score(alignments.size() - 1, QualAdjAligner().score_ungapped_alignment(alignments.back()));
+                    funnel.score(alignments.size() - 1, qual_aligner.score_ungapped_alignment(alignments.back()));
                     // We're done with this input item
                     funnel.processed_input();
                 }
@@ -411,7 +412,7 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
             if (track_provenance) {
 
                 funnel.project(extension_num);
-                funnel.score(alignments.size() - 1, QualAdjAligner().score_ungapped_alignment(alignments.back()));
+                funnel.score(alignments.size() - 1, qual_aligner.score_ungapped_alignment(alignments.back()));
                 
                 // We're done with this input item
                 funnel.processed_input();
@@ -461,13 +462,13 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
     
     vector<double> probability_mapping_lost;
     process_until_threshold_a(alignments, (std::function<double(size_t)>) [&](size_t i) -> double {
-        return QualAdjAligner().score_ungapped_alignment(alignments.at(i));
+        return qual_aligner.score_ungapped_alignment(alignments.at(i));
     }, 0, 1, max_multimaps, [&](size_t alignment_num) {
         // This alignment makes it
         // Called in score order
         
         // Remember the score at its rank
-        scores.emplace_back(QualAdjAligner().score_ungapped_alignment(alignments[alignment_num]));
+        scores.emplace_back(qual_aligner.score_ungapped_alignment(alignments[alignment_num]));
         
         // Remember the output alignment
         mappings.emplace_back(std::move(alignments[alignment_num]));
@@ -486,7 +487,7 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
         // We already have enough alignments, although this one has a good score
         
         // Remember the score at its rank anyway
-        scores.emplace_back(QualAdjAligner().score_ungapped_alignment(alignments[alignment_num]));
+        scores.emplace_back(qual_aligner.score_ungapped_alignment(alignments[alignment_num]));
         
         if (track_provenance) {
             funnel.fail("max-multimaps", alignment_num);
@@ -624,6 +625,7 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
 pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment& aln1, Alignment& aln2,
                                                       vector<pair<Alignment, Alignment>>& ambiguous_pair_buffer){
 
+    QualAdjAligner qual_aligner;
     if (fragment_length_distr.is_finalized()) {
         //If we know the fragment length distribution then we just map paired ended 
         return map_paired(aln1, aln2);
@@ -639,7 +641,7 @@ pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment
         int32_t max_score_aln_2 = get_regular_aligner()->score_exact_match(aln2, 0, aln2.sequence().size());
         if (!alns1.empty() && ! alns2.empty()  && 
             alns1.front().mapping_quality() == 60 && alns2.front().mapping_quality() == 60 &&
-            QualAdjAligner().score_ungapped_alignment(alns1.front()) >= max_score_aln_1 * 0.85 && QualAdjAligner().score_ungapped_alignment(alns2.front()) >= max_score_aln_2 * 0.85) {
+            qual_aligner.score_ungapped_alignment(alns1.front()) >= max_score_aln_1 * 0.85 && qual_aligner.score_ungapped_alignment(alns2.front()) >= max_score_aln_2 * 0.85) {
 
             //Flip the second alignment to get the proper fragment distance 
             reverse_complement_alignment_in_place(&alns2.front(), [&](vg::id_t node_id) {
@@ -680,7 +682,8 @@ pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment
 
 pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignment& aln1, Alignment& aln2) {
     // For each input alignment
-    
+ 
+    QualAdjAligner qual_aligner;   
 #ifdef debug
     cerr << "Read pair " << aln1.name() << ": " << aln1.sequence() << " and " << aln2.name() << ": " << aln2.sequence() << endl;
 #endif
@@ -1084,11 +1087,11 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
                 
                 
                 size_t fragment_num = cluster_extensions[extension_num].second;
-                if (QualAdjAligner().score_ungapped_alignment(second_best_alignment) != 0 && 
-                    QualAdjAligner().score_ungapped_alignment(second_best_alignment) > QualAdjAligner().score_ungapped_alignment(best_alignment) * 0.8) {
+                if (qual_aligner.score_ungapped_alignment(second_best_alignment) != 0 && 
+                    qual_aligner.score_ungapped_alignment(second_best_alignment) > qual_aligner.score_ungapped_alignment(best_alignment) * 0.8) {
                     //If there is a second extension and its score is at least half of the best score
-                    read_num == 0 ? best_alignment_scores.first = max(best_alignment_scores.first, QualAdjAligner().score_ungapped_alignment(second_best_alignment))
-                                  : best_alignment_scores.second = max(best_alignment_scores.second, QualAdjAligner().score_ungapped_alignment(second_best_alignment));
+                    read_num == 0 ? best_alignment_scores.first = max(best_alignment_scores.first, qual_aligner.score_ungapped_alignment(second_best_alignment))
+                                  : best_alignment_scores.second = max(best_alignment_scores.second, qual_aligner.score_ungapped_alignment(second_best_alignment));
                     read_num == 0 ? alignments[fragment_num ].first.emplace_back(std::move(second_best_alignment) ) :
                                     alignments[fragment_num ].second.emplace_back(std::move(second_best_alignment));
                     read_num == 0 ? alignment_indices[fragment_num].first.emplace_back(curr_funnel_index)
@@ -1103,8 +1106,8 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
                     }
                 }
 
-                read_num == 0 ? best_alignment_scores.first = max(best_alignment_scores.first, QualAdjAligner().score_ungapped_alignment(best_alignment))
-                              : best_alignment_scores.second = max(best_alignment_scores.second, QualAdjAligner().score_ungapped_alignment(best_alignment));
+                read_num == 0 ? best_alignment_scores.first = max(best_alignment_scores.first, qual_aligner.score_ungapped_alignment(best_alignment))
+                              : best_alignment_scores.second = max(best_alignment_scores.second, qual_aligner.score_ungapped_alignment(best_alignment));
                 read_num == 0 ? alignments[fragment_num].first.emplace_back(std::move(best_alignment))
                               : alignments[fragment_num].second.emplace_back(std::move(best_alignment));
                 read_num == 0 ? alignment_indices[fragment_num].first.emplace_back(curr_funnel_index)
@@ -1191,7 +1194,7 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
                     double dev = fragment_distance - fragment_length_distr.mean();
                     double fragment_length_log_likelihood = -dev * dev / (2.0 * fragment_length_distr.stdev() * fragment_length_distr.stdev());
                     if (fragment_distance != std::numeric_limits<int64_t>::max() ) {
-                        double score = QualAdjAligner().score_ungapped_alignment(alignment1) + QualAdjAligner().score_ungapped_alignment(alignment2) + (fragment_length_log_likelihood / get_aligner()->log_base);
+                        double score = qual_aligner.score_ungapped_alignment(alignment1) + qual_aligner.score_ungapped_alignment(alignment2) + (fragment_length_log_likelihood / get_aligner()->log_base);
                         alignment_groups[fragment_num].first[i1].emplace_back(paired_alignments.size());
                         alignment_groups[fragment_num].second[i2].emplace_back(paired_alignments.size());
                         paired_alignments.emplace_back(make_pair(fragment_num, i1), make_pair(fragment_num, i2));
@@ -1280,11 +1283,11 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
 
 
                 if (std::get<2>(index)) {
-                    if (QualAdjAligner().score_ungapped_alignment(alignment) > QualAdjAligner().score_ungapped_alignment(best_aln1)) {
+                    if (qual_aligner.score_ungapped_alignment(alignment) > qual_aligner.score_ungapped_alignment(best_aln1)) {
                         best_aln1 = alignment;
                     }
                 } else {
-                    if (QualAdjAligner().score_ungapped_alignment(alignment) > QualAdjAligner().score_ungapped_alignment(best_aln2)) {
+                    if (qual_aligner.score_ungapped_alignment(alignment) > qual_aligner.score_ungapped_alignment(best_aln2)) {
                         best_aln2 = alignment;
                     }
                 }
@@ -1378,8 +1381,8 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
 
             process_until_threshold_a(unpaired_alignments, (std::function<double(size_t)>) [&](size_t i) -> double{
                 tuple<size_t, size_t, bool> index = unpaired_alignments.at(i);
-                return (double) std::get<2>(index) ? QualAdjAligner().score_ungapped_alignment(alignments[std::get<0>(index)].first[std::get<1>(index)])
-                                                   : QualAdjAligner().score_ungapped_alignment(alignments[std::get<0>(index)].second[std::get<1>(index)]);
+                return (double) std::get<2>(index) ? qual_aligner.score_ungapped_alignment(alignments[std::get<0>(index)].first[std::get<1>(index)])
+                                                   : qual_aligner.score_ungapped_alignment(alignments[std::get<0>(index)].second[std::get<1>(index)]);
             }, 0, 1, max_rescue_attempts, [&](size_t i) {
                 tuple<size_t, size_t, bool> index = unpaired_alignments.at(i);
                 bool found_first = std::get<2>(index); 
@@ -1394,7 +1397,7 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
                 Alignment rescued_aln = found_first ? aln2 : aln1;
                 rescued_aln.clear_path();
 
-                if (found_pair && (double) QualAdjAligner().score_ungapped_alignment(mapped_aln) < (double) (found_first ? best_alignment_scores.first : best_alignment_scores.second) * paired_rescue_score_limit) {
+                if (found_pair && (double) qual_aligner.score_ungapped_alignment(mapped_aln) < (double) (found_first ? best_alignment_scores.first : best_alignment_scores.second) * paired_rescue_score_limit) {
                     //If we have already found paired clusters and this unpaired alignment is not good enough, do nothing
                     return true;
                 }
@@ -1408,7 +1411,7 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
 
                     double dev = fragment_dist - fragment_length_distr.mean();
                     double fragment_length_log_likelihood = -dev * dev / (2.0 * fragment_length_distr.stdev() * fragment_length_distr.stdev());
-                    double score = QualAdjAligner().score_ungapped_alignment(mapped_aln) + QualAdjAligner().score_ungapped_alignment(rescued_aln) + (fragment_length_log_likelihood / get_aligner()->log_base);
+                    double score = qual_aligner.score_ungapped_alignment(mapped_aln) + qual_aligner.score_ungapped_alignment(rescued_aln) + (fragment_length_log_likelihood / get_aligner()->log_base);
 
                     set_annotation(mapped_aln, "rescuer", true);
                     set_annotation(rescued_aln, "rescued", true);
@@ -3059,7 +3062,8 @@ pair<Path, size_t> MinimizerMapper::get_best_alignment_against_any_tree(const ve
             cerr << "\tScore: " << current_alignment.score() << endl;
 #endif
             
-            if (QualAdjAligner().score_ungapped_alignment(current_alignment) > best_score) {
+    QualAdjAligner qual_aligner;
+            if (qual_aligner.score_ungapped_alignment(current_alignment) > best_score) {
                 // This is a new best alignment.
                 best_path = current_alignment.path();
                 
@@ -3072,7 +3076,7 @@ pair<Path, size_t> MinimizerMapper::get_best_alignment_against_any_tree(const ve
                 
                 // Translate from subgraph into base graph and keep it.
                 best_path = subgraph.translate_down(best_path);
-                best_score = QualAdjAligner().score_ungapped_alignment(current_alignment);
+                best_score = qual_aligner.score_ungapped_alignment(current_alignment);
                 
 #ifdef debug
                 cerr << "New best alignment is "
