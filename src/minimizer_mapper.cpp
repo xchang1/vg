@@ -22,7 +22,7 @@
 #include <cmath>
 
 //#define debug
-#define print_minimizers
+//#define print_minimizers
 
 namespace vg {
 
@@ -1972,7 +1972,7 @@ vector<pair<bool, bool>> mapping_was_rescued;
          if (minimizer_extensions_count[0][i]>0) {
              assert(minimizer.hits<=hard_hit_cap) ;
          }
-    } cerr << "\t" << uncapped_mapq << "\t" << fragment_cluster_cap << "\t" << mapq_score_group_1 << "\t" << mapq_extend_caps[0] << "\t" << mappings.first.front().get_mapping_quality();  
+    } cerr << "\t" << uncapped_mapq << "\t" << fragment_cluster_cap << "\t" << mapq_score_group_1 << "\t" << mapq_extend_caps[0] << "\t" << mappings.first.front().mapping_quality();  
     if (track_correctness) {
         cerr << "\t" << funnels[0].last_correct_stage() << endl;
     } else {
@@ -1997,7 +1997,7 @@ vector<pair<bool, bool>> mapping_was_rescued;
              assert(minimizer.hits<=hard_hit_cap) ;
          }
     }
-    cerr << "\t" << uncapped_mapq << "\t" << fragment_cluster_cap << "\t" << mapq_score_group_2 << "\t" << mapq_extend_caps[1] << "\t" << mappings.first.front().get_mapping_quality();
+    cerr << "\t" << uncapped_mapq << "\t" << fragment_cluster_cap << "\t" << mapq_score_group_2 << "\t" << mapq_extend_caps[1] << "\t" << mappings.first.front().mapping_quality();
     if (track_correctness) {
         cerr << "\t" << funnels[1].last_correct_stage() << endl;
     } else {
