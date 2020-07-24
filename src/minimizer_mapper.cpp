@@ -1713,11 +1713,11 @@ vector<pair<bool, bool>> mapping_was_rescued;
         funnels[1].substage("mapq");
     }
 #ifdef print_minimizers
-    double uncapped_mapq = 0.0;
-    double fragment_cluster_cap = 0.0;
-    vector<double> mapq_extend_caps;
-    double mapq_score_group_1 = 0.0;
-    double mapq_score_group_2 = 0.0;
+    double uncapped_mapq = -std::numeric_limits<float>::infinity();
+    double fragment_cluster_cap = -std::numeric_limits<float>::infinity();
+    vector<double> mapq_extend_caps (2,  -std::numeric_limits<float>::infinity());
+    double mapq_score_group_1 = -std::numeric_limits<float>::infinity();
+    double mapq_score_group_2 = -std::numeric_limits<float>::infinity();
 #endif
  
     if (mappings.first.empty()) {
@@ -1783,8 +1783,8 @@ vector<pair<bool, bool>> mapping_was_rescued;
 
     
 #ifdef print_minimizers
-    mapq_score_group_1 = scores_group_1.size() <= 1 ? 0.0 : get_regular_aligner()->maximum_mapping_quality_exact(scores_group_1, &winning_index);
-    mapq_score_group_2 = scores_group_2.size() <= 1 ? 0.0 : get_regular_aligner()->maximum_mapping_quality_exact(scores_group_2, &winning_index);
+    mapq_score_group_1 = scores_group_1.size() <= 1 ? -std::numeric_limits<float>::infinity() : get_regular_aligner()->maximum_mapping_quality_exact(scores_group_1, &winning_index);
+    mapq_score_group_2 = scores_group_2.size() <= 1 ? -std::numeric_limits<float>::infinity() : get_regular_aligner()->maximum_mapping_quality_exact(scores_group_2, &winning_index);
 #endif
         // Compute one MAPQ cap across all the fragments
         double mapq_cap = -std::numeric_limits<float>::infinity();
@@ -1799,7 +1799,7 @@ vector<pair<bool, bool>> mapping_was_rescued;
                 minimizers_by_read[read_num],
                 present_in_any_extended_cluster_by_read[read_num]);
 #ifdef print_minimizers
-            mapq_extend_caps.emplace_back(mapq_extended_cap);
+            mapq_extend_caps[read_num] = mapq_extended_cap;
 #endif
 
             // Remember the caps
@@ -1949,9 +1949,6 @@ vector<pair<bool, bool>> mapping_was_rescued;
     }
  
 #ifdef print_minimizers
-    if (mapq_extend_caps.size() == 0) {
-        mapq_extend_caps.resize(2,0.0);
-    }
     if (distances.size() == 0) {
         distances.emplace_back(0);
     }
@@ -1997,7 +1994,7 @@ vector<pair<bool, bool>> mapping_was_rescued;
              assert(minimizer.hits<=hard_hit_cap) ;
          }
     }
-    cerr << "\t" << uncapped_mapq << "\t" << fragment_cluster_cap << "\t" << mapq_score_group_2 << "\t" << mapq_extend_caps[1] << "\t" << mappings.first.front().mapping_quality();
+    cerr << "\t" << uncapped_mapq << "\t" << fragment_cluster_cap << "\t" << mapq_score_group_2 << "\t" << mapq_extend_caps[1] << "\t" << mappings.second.front().mapping_quality();
     if (track_correctness) {
         cerr << "\t" << funnels[1].last_correct_stage() << endl;
     } else {
