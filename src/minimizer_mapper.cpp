@@ -22,7 +22,7 @@
 #include <cmath>
 
 //#define debug
-//#define print_minimizers
+#define print_minimizers
 
 namespace vg {
 
@@ -659,11 +659,21 @@ double uncapped_mapq = mapq;
              assert(minimizer.hits<=hard_hit_cap) ;
          }
     }
-    cerr << "\t" << uncapped_mapq << "\t" << mapq_extended_cap << "\t" << probability_mapping_lost.front();
+
+    double mapq_cluster_cap = std::numeric_limits<float>::infinity();
+    if (probability_mapping_lost.front() > 0) {
+        mapq_cluster_cap =round(prob_to_phred(probability_mapping_lost.front()));
+    }
+    cerr << "\t" << uncapped_mapq << "\t" << mapq_extended_cap << "\t" <<  mapq_cluster_cap << "\t" << mappings.front().mapping_quality();
     if (track_correctness) {
         cerr << "\t" << funnel.last_correct_stage() << endl;
     } else {
         cerr << endl;
+    }
+    double expected_mapq = round(min(uncapped_mapq, min(mapq_extended_cap, mapq_cluster_cap)));
+    if (mappings.front().mapping_quality() != max(0.0,min(expected_mapq, 60.0))){
+        cerr << expected_mapq;
+        assert(abs(mappings.front().mapping_quality()- max(0.0, min(expected_mapq, 60.0))) <= 1);
     }
 #endif
 #ifdef debug
@@ -678,7 +688,7 @@ double uncapped_mapq = mapq;
 
 pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment& aln1, Alignment& aln2,
                                                       vector<pair<Alignment, Alignment>>& ambiguous_pair_buffer){
-    fragment_length_distr.force_parameters(565, 174);
+    //fragment_length_distr.force_parameters(565, 174);
     if (fragment_length_distr.is_finalized()) {
         //If we know the fragment length distribution then we just map paired ended 
         return map_paired(aln1, aln2);
