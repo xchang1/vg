@@ -1268,7 +1268,8 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
                     curr_kept_count = 0;
                     curr_total_count = 0;
                 }
-                if (kept_fragment_cluster[fragment_num].first && kept_fragment_cluster[fragment_num].second) {
+
+                if (kept_fragment_cluster[fragment_num].first || kept_fragment_cluster[fragment_num].second) {
                     //If we kept this fragment cluster - if clusters from both ends got extended
                     curr_kept_count ++;
                 }
