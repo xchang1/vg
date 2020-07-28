@@ -22,7 +22,7 @@
 #include <cmath>
 
 //#define debug
-#define print_minimizers
+//#define print_minimizers
 
 namespace vg {
 
@@ -846,6 +846,8 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
     pair<vector<double>, vector<double>> cluster_coverage_by_fragment;
     cluster_coverage_by_fragment.first.resize(max_fragment_num + 1, 0.0);
     cluster_coverage_by_fragment.second.resize(max_fragment_num + 1, 0.0);
+    vector<pair<bool, bool>> kept_fragment_cluster (max_fragment_num+1, make_pair(false,false)); //For each fragment, did we extend a cluster of each read?
+    
 
     for (size_t read_num = 0 ; read_num < 2 ; read_num++) {
         Alignment& aln = read_num == 0 ? aln1 : aln2;
@@ -889,9 +891,6 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
     minimizer_extensions_count[0].resize(minimizers_by_read[0].size(), 0);
     minimizer_extensions_count[1].resize(minimizers_by_read[1].size(), 0);
 
-    //Keep track of how many equivalent fragment clusters are kept
-    size_t curr_kept = 0;
-    size_t curr_count = 0;
 
     //Now that we've scored each of the clusters, extend and align them
     for (size_t read_num = 0 ; read_num < 2 ; read_num++) {
@@ -1177,6 +1176,13 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
 
                 curr_funnel_index++; 
 
+
+                if (read_num == 0) {
+                    kept_fragment_cluster[fragment_num].first = true;
+                } else { 
+                    kept_fragment_cluster[fragment_num].second = true;
+                }
+
                 //Count how many hits of each minimizer were in an extended cluster that got aligned
                 for (size_t i = 0 ; i < minimizer_extended_cluster_count[read_num][extension_num].size() ; i++) {
                     minimizer_extensions_count[read_num][i] += minimizer_extended_cluster_count[read_num][extension_num][i];
@@ -1207,6 +1213,91 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
             });
         
     }
+
+    size_t curr_kept_count = 0;
+    size_t curr_total_count = 0;
+    pair<double, double> curr_coverage (0.0, 0.0);
+    pair<double, double> curr_score (0.0, 0.0);
+    bool curr_paired = false;
+
+    vector<size_t> fragment_clusters_with_same_score;//Which fragment clusters are in the current score group
+    fragment_clusters_with_same_score.reserve(max_fragment_num+1);
+    //1 - (# equivalent clusters kept / # equivalent clusters)
+    vector<double> probability_fragment_cluster_lost (max_fragment_num+1, std::numeric_limits<float>::infinity()); 
+
+
+    //Go through the fragment clusters in score order to count how many of each score we keep
+    //and how many we discard
+    process_until_threshold_c<pair<bool, bool>, double>(kept_fragment_cluster, [&](size_t i) -> double {
+                return 1.0;
+            }, [&](size_t fragment_a, size_t fragment_b) -> bool {
+                //Sort clusters first by whether it was paired, then by the best coverage and score of any pair in the fragment cluster, 
+                //then by its coverage and score
+
+                double coverage_a = cluster_coverage_by_fragment.first[fragment_a]+cluster_coverage_by_fragment.second[fragment_a];
+                double coverage_b = cluster_coverage_by_fragment.first[fragment_b]+cluster_coverage_by_fragment.second[fragment_b];
+                double score_a = cluster_score_by_fragment.first[fragment_a]+cluster_score_by_fragment.second[fragment_a];
+                double score_b = cluster_score_by_fragment.first[fragment_b]+cluster_score_by_fragment.second[fragment_b];
+
+                if (fragment_cluster_has_pair[fragment_a] != fragment_cluster_has_pair[fragment_b]) {
+                    return fragment_cluster_has_pair[fragment_a];
+                } else if (coverage_a != coverage_b){
+                    return coverage_a > coverage_b;
+                } else {
+                    return score_a > score_b;
+                }
+            },
+            0, 1, kept_fragment_cluster.size(),
+            [&](size_t fragment_num) {
+                // Handle sufficiently good clusters (should be handling all clusters) 
+
+                bool same_as_last = curr_score.first == cluster_score_by_fragment.first[fragment_num]
+                                   && curr_score.second == cluster_score_by_fragment.second[fragment_num]
+                                   && curr_coverage.first == cluster_coverage_by_fragment.first[fragment_num]
+                                   && curr_coverage.second == cluster_coverage_by_fragment.second[fragment_num]
+                                   && curr_paired == fragment_cluster_has_pair[fragment_num]; 
+
+                fragment_clusters_with_same_score.push_back(fragment_num);
+                if (kept_fragment_cluster[fragment_num].first && kept_fragment_cluster[fragment_num].second) {
+                    //If we kept this fragment cluster - if clusters from both ends got extended
+                    curr_kept_count ++;
+                }
+                curr_total_count++;
+
+                if (!same_as_last) {
+                    double probability_lost = 1.0 - ((double) curr_kept_count / (double) curr_total_count); 
+                    for (size_t last_fragment_num : fragment_clusters_with_same_score) {
+                        assert(probability_fragment_cluster_lost[last_fragment_num] == std::numeric_limits<float>::infinity());
+                        probability_fragment_cluster_lost[last_fragment_num] = probability_lost; 
+                    }
+                    fragment_clusters_with_same_score.clear();
+                    curr_score = make_pair(cluster_score_by_fragment.first[fragment_num], 
+                                           cluster_score_by_fragment.second[fragment_num]);
+                    curr_coverage = make_pair(cluster_coverage_by_fragment.first[fragment_num],
+                                              cluster_coverage_by_fragment.second[fragment_num]);
+                    curr_paired = fragment_cluster_has_pair[fragment_num];
+                    curr_kept_count = 0;
+                    curr_total_count = 0;
+                }
+                return true;
+                
+            }, [&](size_t fragment_num) {
+                // There are too many sufficiently good clusters
+                assert(false);
+            }, [&](size_t fragment_num) {
+                // This cluster is not sufficiently good.
+                assert(false);
+            });
+    if (curr_total_count != 0) {
+        double probability_lost = 1.0 - ((double) curr_kept_count / (double) curr_total_count); 
+        for (size_t last_fragment_num : fragment_clusters_with_same_score) {
+            assert(probability_fragment_cluster_lost[last_fragment_num] == std::numeric_limits<float>::infinity());
+            probability_fragment_cluster_lost[last_fragment_num] = probability_lost; 
+        }
+    }
+    for (auto& x : probability_fragment_cluster_lost) {
+        assert(x != std::numeric_limits<float>::infinity());
+    }
     
     
     if (track_provenance) {
@@ -1218,6 +1309,10 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
     // each alignment is stored as <fragment index, alignment index> into alignments
     vector<pair<pair<size_t, size_t>, pair<size_t, size_t>>> paired_alignments;
     paired_alignments.reserve(alignments.size());
+
+    //Which fragment cluster did this pair of alignments come from?
+    vector<size_t> fragment_alignment_from; 
+    fragment_alignment_from.reserve(alignments.size());
 #ifdef print_minimizers
     vector<pair<bool, bool>> alignment_was_rescued;
 #endif
@@ -1268,6 +1363,7 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
                         paired_alignments.emplace_back(make_pair(fragment_num, i1), make_pair(fragment_num, i2));
                         paired_scores.emplace_back(score);
                         fragment_distances.emplace_back(fragment_distance);
+                        fragment_alignment_from.emplace_back(fragment_num);
 #ifdef print_minimizers
                         alignment_was_rescued.emplace_back(false, false);
 #endif
@@ -1552,6 +1648,7 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
                     paired_scores.emplace_back(score);
                     fragment_distances.emplace_back(fragment_dist);
                     rescued_from.push_back(found_first); 
+                    fragment_alignment_from.push_back(max_fragment_num+1); //Didn't get this from a fragment cluster
 #ifdef print_minimizers
                     alignment_was_rescued.emplace_back(!found_first, found_first);
 #endif
@@ -1609,6 +1706,7 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
     vector<double> scores_group_1;
     vector<double> scores_group_2;
     vector<int64_t> distances;
+    vector<size_t> fragment_mapping_from;
     mappings.first.reserve(paired_alignments.size());
     mappings.second.reserve(paired_alignments.size());
     scores.reserve(paired_scores.size());
@@ -1629,6 +1727,7 @@ vector<pair<bool, bool>> mapping_was_rescued;
         // Remember the score at its rank
         scores.emplace_back(paired_scores[alignment_num]);
         distances.emplace_back(fragment_distances[alignment_num]);
+        fragment_mapping_from.emplace_back(fragment_alignment_from[alignment_num]);
         // Remember the output alignment
         mappings.first.emplace_back( alignments[index_pair.first.first].first[index_pair.first.second]);
         mappings.second.emplace_back(alignments[index_pair.second.first].second[index_pair.second.second]);
@@ -1689,6 +1788,7 @@ vector<pair<bool, bool>> mapping_was_rescued;
         // Remember the score at its rank anyway
         scores.emplace_back(paired_scores[alignment_num]);
         distances.emplace_back(fragment_distances[alignment_num]);
+        fragment_mapping_from.emplace_back(fragment_alignment_from[alignment_num]);
         
         if (track_provenance) {
             funnels[0].fail("max-multimaps", alignment_num);
@@ -1756,13 +1856,15 @@ vector<pair<bool, bool>> mapping_was_rescued;
         uncapped_mapq = mapq;
 #endif
 
-        //Cap mapq at 1 / # equivalent or better fragment clusters
-        if (better_cluster_count_mappings.size() != 0 && better_cluster_count_mappings.front() > 0) {
-            mapq = min(mapq,round(prob_to_phred((1.0 / (double) better_cluster_count_mappings.front()))));
+        //Cap mapq at probability that the correct alignment was in an equivalently good fragment
+        //cluster that didn't get extended
+        //Only applied to non-rescued alignments
+        if (fragment_mapping_from.front() != max_fragment_num+1) {
+            mapq = min(mapq,round(prob_to_phred(probability_fragment_cluster_lost[fragment_mapping_from.front()])));
         }
 #ifdef print_minimizers
-        if (better_cluster_count_mappings.size() != 0 && better_cluster_count_mappings.front() > 0) {
-            fragment_cluster_cap = round(prob_to_phred((1.0 / (double) better_cluster_count_mappings.front())));
+        if (fragment_mapping_from.front() != max_fragment_num+1) {
+            fragment_cluster_cap = round(prob_to_phred(probability_fragment_cluster_lost[fragment_mapping_from.front()]));
         }
 #endif
 
