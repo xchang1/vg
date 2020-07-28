@@ -51,12 +51,6 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
 #ifdef debug
     cerr << "Read " << aln.name() << ": " << aln.sequence() << endl;
 #endif
-#ifdef print_minimizers
-    cerr << aln.sequence() << "\t";
-    for (char c : aln.quality()) {
-        cerr << (char)(c+33);
-    }
-#endif
 
     // Make a new funnel instrumenter to watch us map this read.
     Funnel funnel;
@@ -93,9 +87,6 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
 
 #ifdef debug
     cerr << "Found " << clusters.size() << " clusters" << endl;
-#endif
-#ifdef print_minimizers
-    cerr << "\t" << clusters.size();
 #endif
     
     // We will set a score cutoff based on the best, but move it down to the
@@ -646,6 +637,13 @@ double uncapped_mapq = mapq;
     }
     
 #ifdef print_minimizers
+    cerr << aln.sequence() << "\t";
+    for (char c : aln.quality()) {
+        cerr << (char)(c+33);
+    }
+
+    cerr << "\t" << clusters.size();
+
     for (size_t i = 0 ; i < minimizers.size() ; i++) {
         auto& minimizer = minimizers[i];
         cerr << "\t"
@@ -671,10 +669,7 @@ double uncapped_mapq = mapq;
         cerr << endl;
     }
     double expected_mapq = round(min(uncapped_mapq, min(mapq_extended_cap, mapq_cluster_cap)));
-    if (mappings.front().mapping_quality() != max(0.0,min(expected_mapq, 60.0))){
-        cerr << expected_mapq;
-        assert(abs(mappings.front().mapping_quality()- max(0.0, min(expected_mapq, 60.0))) <= 1);
-    }
+    assert(abs(mappings.front().mapping_quality()- max(0.0, min(expected_mapq, 60.0))) <= 1);
 #endif
 #ifdef debug
     // Dump the funnel info graph.
@@ -1257,12 +1252,6 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
                                    && curr_coverage.second == cluster_coverage_by_fragment.second[fragment_num]
                                    && curr_paired == fragment_cluster_has_pair[fragment_num]; 
 
-                fragment_clusters_with_same_score.push_back(fragment_num);
-                if (kept_fragment_cluster[fragment_num].first && kept_fragment_cluster[fragment_num].second) {
-                    //If we kept this fragment cluster - if clusters from both ends got extended
-                    curr_kept_count ++;
-                }
-                curr_total_count++;
 
                 if (!same_as_last) {
                     double probability_lost = 1.0 - ((double) curr_kept_count / (double) curr_total_count); 
@@ -1279,6 +1268,13 @@ pair<vector<Alignment>, vector< Alignment>> MinimizerMapper::map_paired(Alignmen
                     curr_kept_count = 0;
                     curr_total_count = 0;
                 }
+                if (kept_fragment_cluster[fragment_num].first && kept_fragment_cluster[fragment_num].second) {
+                    //If we kept this fragment cluster - if clusters from both ends got extended
+                    curr_kept_count ++;
+                }
+                curr_total_count++;
+               
+                fragment_clusters_with_same_score.push_back(fragment_num);
                 return true;
                 
             }, [&](size_t fragment_num) {
