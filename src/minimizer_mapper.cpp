@@ -28,6 +28,8 @@
 //#define debug_dump_graph
 // Dump fragment length distribution information
 //#define debug_fragment_distr
+//Log the time of each stage per read
+#define log_time
 
 namespace vg {
 
@@ -148,6 +150,14 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
 }
 
 vector<Alignment> MinimizerMapper::map(Alignment& aln) {
+
+#ifdef log_time
+cerr << "seed\tcluster\textend\talign" << endl;
+double seed_time = 0.0;
+double cluster_time = 0.0;
+double extend_time = 0.0;
+double align_time = 0.0;
+#endif
     
     if (show_work) {
         #pragma omp critical (cerr)
@@ -161,18 +171,35 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
     Funnel funnel;
     funnel.start(aln.name());
     
+#ifdef log_time
+    std::chrono::time_point<std::chrono::system_clock> start_seed = std::chrono::system_clock::now();
+#endif
     // Minimizers sorted by score in descending order.
     std::vector<Minimizer> minimizers = this->find_minimizers(aln.sequence(), funnel);
 
     // Find the seeds and mark the minimizers that were located.
     std::vector<Seed> seeds = this->find_seeds(minimizers, aln, funnel);
 
+#ifdef log_time
+    std::chrono::time_point<std::chrono::system_clock> end_seed = std::chrono::system_clock::now();
+    std::chrono::duration<double> seed_seconds = end_seed-start_seed;
+    seed_time = seed_seconds.count();
+#endif
     // Cluster the seeds. Get sets of input seed indexes that go together.
     if (track_provenance) {
         funnel.stage("cluster");
     }
+
+#ifdef log_time
+    std::chrono::time_point<std::chrono::system_clock> start_cluster = std::chrono::system_clock::now();
+#endif
     std::vector<Cluster> clusters = clusterer.cluster_seeds(seeds, get_distance_limit(aln.sequence().size()));
 
+#ifdef log_time
+    std::chrono::time_point<std::chrono::system_clock> end_cluster = std::chrono::system_clock::now();
+    std::chrono::duration<double> cluster_seconds = end_cluster-start_cluster;
+    cluster_time = cluster_seconds.count();
+#endif
     // Determine the scores and read coverages for each cluster.
     // Also find the best and second-best cluster scores.
     if (this->track_provenance) {
@@ -222,7 +249,10 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
     vector<vector<size_t>> minimizer_extended_cluster_count; 
 
     size_t kept_cluster_count = 0;
-    
+ 
+#ifdef log_time
+    std::chrono::time_point<std::chrono::system_clock> start_extend = std::chrono::system_clock::now();
+#endif   
     //Process clusters sorted by both score and read coverage
     process_until_threshold_c<Cluster, double>(clusters, [&](size_t i) -> double {
             return clusters[i].coverage;
@@ -355,6 +385,11 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
             }
         });
         
+#ifdef log_time
+    std::chrono::time_point<std::chrono::system_clock> end_extend = std::chrono::system_clock::now();
+    std::chrono::duration<double> extend_seconds = end_extend - start_extend;
+    extend_time = extend_seconds.count();
+#endif   
     std::vector<int> cluster_extension_scores = this->score_extensions(cluster_extensions, aln, funnel);
 
     if (track_provenance) {
@@ -392,6 +427,9 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
         aln.set_read_group(read_group);
     }
     
+#ifdef log_time
+    std::chrono::time_point<std::chrono::system_clock> start_align = std::chrono::system_clock::now();
+#endif   
     // Go through the gapless extension groups in score order.
     process_until_threshold_b(cluster_extensions, cluster_extension_scores,
         extension_set_score_threshold, 2, max_alignments,
@@ -559,6 +597,11 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
             }
         });
     
+#ifdef log_time
+    std::chrono::time_point<std::chrono::system_clock> end_align = std::chrono::system_clock::now();
+    std::chrono::duration<double> align_seconds = end_align - start_align;
+    align_time = align_seconds.count();
+#endif   
     if (alignments.size() == 0) {
         // Produce an unaligned Alignment
         alignments.emplace_back(aln);
@@ -748,6 +791,9 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
         }
     }
 
+#ifdef log_time
+cerr << seed_time << "\t" << cluster_time << "\t" << extend_time << "\t" << align_time << endl;
+#endif
     return mappings;
 }
 
@@ -860,6 +906,14 @@ pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment
 
 pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment& aln1, Alignment& aln2) {
     
+#ifdef log_time
+cerr << "seed\tcluster\textend\talign\trescue" << endl;
+double seed_time = 0.0;
+double cluster_time = 0.0;
+double extend_time = 0.0;
+double align_time = 0.0;
+double rescue_time = 0.0;
+#endif
     if (show_work) {
         #pragma omp critical (cerr)
         {
@@ -916,6 +970,9 @@ pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment
         aln2.set_read_group(read_group);
     }
     
+#ifdef log_time
+    std::chrono::time_point<std::chrono::system_clock> start_seed = std::chrono::system_clock::now();
+#endif  
     // Minimizers for both reads, sorted by score in descending order.
     std::vector<std::vector<Minimizer>> minimizers_by_read(2);
     minimizers_by_read[0] = this->find_minimizers(aln1.sequence(), funnels[0]);
@@ -926,12 +983,27 @@ pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment
     seeds_by_read[0] = this->find_seeds(minimizers_by_read[0], aln1, funnels[0]);
     seeds_by_read[1] = this->find_seeds(minimizers_by_read[1], aln2, funnels[1]);
 
+#ifdef log_time
+    std::chrono::time_point<std::chrono::system_clock> end_seed = std::chrono::system_clock::now();
+    std::chrono::duration<double> seed_seconds = end_seed - start_seed;
+    seed_time = seed_seconds.count();
+#endif  
     // Cluster the seeds. Get sets of input seed indexes that go together.
     if (track_provenance) {
         funnels[0].stage("cluster");
         funnels[1].stage("cluster");
     }
+
+#ifdef log_time
+    std::chrono::time_point<std::chrono::system_clock> start_cluster = std::chrono::system_clock::now();
+#endif  
     std::vector<std::vector<Cluster>> all_clusters = clusterer.cluster_seeds(seeds_by_read, get_distance_limit(aln1.sequence().size()), fragment_distance_limit);
+
+#ifdef log_time
+    std::chrono::time_point<std::chrono::system_clock> end_cluster = std::chrono::system_clock::now();
+    std::chrono::duration<double> cluster_seconds = end_cluster - start_cluster;
+    cluster_time = cluster_seconds.count();
+#endif  
 
 
     //Keep track of which fragment clusters (clusters of clusters) have read clusters from each end
@@ -1136,7 +1208,10 @@ pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment
         minimizer_explored_by_read[read_num] = SmallBitset(minimizers.size());
         minimizer_aligned_count_by_read[read_num].resize(minimizers.size(), 0);
         size_t kept_cluster_count = 0;
-        
+ 
+#ifdef log_time
+    std::chrono::time_point<std::chrono::system_clock> start_extend = std::chrono::system_clock::now();
+#endif         
         //Process clusters sorted by both score and read coverage
         process_until_threshold_c<Cluster, double>(clusters, [&](size_t i) -> double {
                 return clusters[i].coverage;
@@ -1279,7 +1354,12 @@ pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment
                 // This cluster is not sufficiently good.
                 // TODO: I don't think it should ever get here unless we limit the scores of the fragment clusters we look at
             });
-            
+ 
+#ifdef log_time
+    std::chrono::time_point<std::chrono::system_clock> end_extend = std::chrono::system_clock::now();
+    std::chrono::duration<double> extend_seconds = end_extend - start_extend;
+    extend_time += extend_seconds.count();
+#endif
         
         // We now estimate the best possible alignment score for each cluster.
         std::vector<int> cluster_extension_scores = this->score_extensions(cluster_extensions, aln, funnels[read_num]);
@@ -1302,7 +1382,10 @@ pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment
         
         //Since we will lose the order in which we pass alignments to the funnel, use this to keep track
         size_t curr_funnel_index = 0;
-
+ 
+#ifdef log_time
+    std::chrono::time_point<std::chrono::system_clock> start_align = std::chrono::system_clock::now();
+#endif
         // Go through the gapless extension groups in score order.
         process_until_threshold_b(cluster_extensions, cluster_extension_scores,
             extension_set_score_threshold, 2, max_alignments,
@@ -1443,7 +1526,12 @@ pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment
                     funnels[read_num].fail("extension-set", extension_num, cluster_extension_scores[extension_num]);
                 }
             });
-        
+         
+#ifdef log_time
+    std::chrono::time_point<std::chrono::system_clock> end_align = std::chrono::system_clock::now();
+    std::chrono::duration<double> align_seconds = end_align - start_align;
+    align_time += align_seconds.count();
+#endif
     }
 
 
@@ -1698,10 +1786,13 @@ pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment
                 pair_types.emplace_back(unpaired);
             }
         }
-
+ 
         if (max_rescue_attempts != 0) {
             //Attempt rescue on unpaired alignments if either we didn't find any pairs or if the unpaired alignments are very good
 
+#ifdef log_time
+            std::chrono::time_point<std::chrono::system_clock> start_rescue = std::chrono::system_clock::now();
+#endif
             process_until_threshold_a(unpaired_alignments, (std::function<double(size_t)>) [&](size_t i) -> double{
                 tuple<size_t, size_t, bool>& index = unpaired_alignments.at(i);
                 return (double) std::get<2>(index) ? alignments[std::get<0>(index)].first[std::get<1>(index)].score()
@@ -1802,6 +1893,12 @@ pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment
                 }
                 return;
             });
+
+#ifdef log_time
+            std::chrono::time_point<std::chrono::system_clock> end_rescue = std::chrono::system_clock::now();
+            std::chrono::duration<double> rescue_seconds = end_rescue - start_rescue;
+            rescue_time += rescue_seconds.count();
+#endif
         }
     }
 
@@ -2151,6 +2248,9 @@ pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment
 
     }
  
+#ifdef log_time
+cerr << seed_time << "\t" << cluster_time << "\t" << extend_time << "\t" << align_time << "\t" << rescue_time << endl;
+#endif
 #ifdef print_minimizer_table
 
     if (distances.size() == 0) {
