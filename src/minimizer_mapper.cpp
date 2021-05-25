@@ -28,7 +28,7 @@
 //#define debug_dump_graph
 // Dump fragment length distribution information
 //#define debug_fragment_distr
-//Log the time of each stage per read
+//Log the time of each stage per read (in seconds, tab separated seed, cluster, extent, align, rescue(optional)
 #define log_time
 
 namespace vg {
@@ -152,7 +152,6 @@ void MinimizerMapper::map(Alignment& aln, AlignmentEmitter& alignment_emitter) {
 vector<Alignment> MinimizerMapper::map(Alignment& aln) {
 
 #ifdef log_time
-cerr << "seed\tcluster\textend\talign" << endl;
 double seed_time = 0.0;
 double cluster_time = 0.0;
 double extend_time = 0.0;
@@ -907,7 +906,6 @@ pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment
 pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment& aln1, Alignment& aln2) {
     
 #ifdef log_time
-cerr << "seed\tcluster\textend\talign\trescue" << endl;
 double seed_time = 0.0;
 double cluster_time = 0.0;
 double extend_time = 0.0;
