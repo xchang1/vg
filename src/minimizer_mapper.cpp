@@ -153,7 +153,9 @@ vector<Alignment> MinimizerMapper::map(Alignment& aln) {
 
 #ifdef log_time
 double seed_time = 0.0;
+int64_t seed_count = 0;
 double cluster_time = 0.0;
+int64_t cluster_count = 0;
 double extend_time = 0.0;
 double align_time = 0.0;
 #endif
@@ -183,6 +185,7 @@ double align_time = 0.0;
     std::chrono::time_point<std::chrono::system_clock> end_seed = std::chrono::system_clock::now();
     std::chrono::duration<double> seed_seconds = end_seed-start_seed;
     seed_time = seed_seconds.count();
+    seed_count = seeds.size();
 #endif
     // Cluster the seeds. Get sets of input seed indexes that go together.
     if (track_provenance) {
@@ -198,6 +201,7 @@ double align_time = 0.0;
     std::chrono::time_point<std::chrono::system_clock> end_cluster = std::chrono::system_clock::now();
     std::chrono::duration<double> cluster_seconds = end_cluster-start_cluster;
     cluster_time = cluster_seconds.count();
+    cluster_count = clusters.size();
 #endif
     // Determine the scores and read coverages for each cluster.
     // Also find the best and second-best cluster scores.
@@ -389,6 +393,12 @@ double align_time = 0.0;
     std::chrono::duration<double> extend_seconds = end_extend - start_extend;
     extend_time = extend_seconds.count();
 #endif   
+
+#ifdef log_time
+cerr << seed_time << "\t" << seed_count << "\t" << cluster_time << "\t" << cluster_count << "\t" << extend_time << "\t" << align_time << endl;
+#endif
+vector<Alignment> alns;
+return alns;
     std::vector<int> cluster_extension_scores = this->score_extensions(cluster_extensions, aln, funnel);
 
     if (track_provenance) {
@@ -791,7 +801,7 @@ double align_time = 0.0;
     }
 
 #ifdef log_time
-cerr << seed_time << "\t" << cluster_time << "\t" << extend_time << "\t" << align_time << endl;
+cerr << seed_time << "\t" << seed_count << "\t" << cluster_time << "\t" << cluster_count << "\t" << extend_time << "\t" << align_time << endl;
 #endif
     return mappings;
 }
@@ -907,7 +917,9 @@ pair<vector<Alignment>, vector<Alignment>> MinimizerMapper::map_paired(Alignment
     
 #ifdef log_time
 double seed_time = 0.0;
+size_t seed_count = 0;
 double cluster_time = 0.0;
+size_t cluster_count = 0;
 double extend_time = 0.0;
 double align_time = 0.0;
 double rescue_time = 0.0;
@@ -1358,6 +1370,12 @@ double rescue_time = 0.0;
     std::chrono::duration<double> extend_seconds = end_extend - start_extend;
     extend_time += extend_seconds.count();
 #endif
+#ifdef log_time
+cerr << seed_time << "\t" << cluster_time << "\t" << extend_time << "\t" << align_time << "\t" << rescue_time << endl;
+#endif
+    pair<vector<Alignment>, vector<Alignment>> mappings;
+
+    return mappings;
         
         // We now estimate the best possible alignment score for each cluster.
         std::vector<int> cluster_extension_scores = this->score_extensions(cluster_extensions, aln, funnels[read_num]);
