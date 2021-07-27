@@ -18,7 +18,7 @@
 #include "../algorithms/distance_to_head.hpp"
 #include "../algorithms/distance_to_tail.hpp"
 #include "../handle.hpp"
-#include "../cactus_snarl_finder.hpp"
+#include "../integrated_snarl_finder.hpp"
 #include "../annotation.hpp"
 
 #include "../path.hpp"
@@ -31,6 +31,7 @@
 #include "bdsg/odgi.hpp"
 #include "../io/converted_hash_graph.hpp"
 #include "../io/save_handle_graph.hpp"
+#include "min_distance.hpp"
 
 using namespace std;
 using namespace vg;
@@ -65,7 +66,8 @@ void help_stats(char** argv) {
          << "    -F, --format          graph format from {VG-Protobuf, PackedGraph, HashGraph, ODGI, XG}. " <<
         "Can't detect Protobuf if graph read from stdin" << endl
          << "    -D, --degree-dist     print degree distribution of the graph." << endl
-         << "    -v, --verbose         output longer reports" << endl;
+         << "    -v, --verbose         output longer reports" << endl
+         << "    -i, --distance [dist] distance index snarls" << endl;
 }
 
 int main_stats(int argc, char** argv) {
@@ -100,6 +102,7 @@ int main_stats(int argc, char** argv) {
     bool snarl_stats = false;
     bool format = false;
     bool degree_dist = false;
+    string dist_name;
 
     int c;
     optind = 2; // force optind past command positional argument
@@ -129,11 +132,12 @@ int main_stats(int argc, char** argv) {
             {"snarls", no_argument, 0, 'R'},
             {"format", no_argument, 0, 'F'},
             {"degree-dist", no_argument, 0, 'D'}, 
+            {"distance", required_argument, 0, 'i'}, 
             {0, 0, 0, 0}
         };
 
         int option_index = 0;
-        c = getopt_long (argc, argv, "hzlLsHTecdtn:NEa:vAro:ORFD",
+        c = getopt_long (argc, argv, "hzlLsHTecdtn:NEa:vAro:ORFDi:",
                 long_options, &option_index);
 
         // Detect the end of the options.
@@ -232,6 +236,9 @@ int main_stats(int argc, char** argv) {
 
         case 'D':
             degree_dist = true;
+            break;
+        case 'i':
+            dist_name = optarg;
             break;
 
         case 'h':
@@ -1029,49 +1036,48 @@ int main_stats(int argc, char** argv) {
         
         require_graph();
         
-        // First compute the snarls
-        auto manager = CactusSnarlFinder(*graph).find_snarls();
+        //Create snarl finder
+        auto manager = IntegratedSnarlFinder(*graph);
         
-        // We will track depth for each snarl
-        unordered_map<const Snarl*, size_t> depth;
+
+        //Stack for keeping track of what we've found
+        vector<pair<nid_t, bool>> stack;
         
-        manager.for_each_snarl_preorder([&](const Snarl* snarl) {
-            // Loop over all the snarls and print stats.
-            
-            // Snarl metadata
-            cout << "ultrabubble\t" << (snarl->type() == ULTRABUBBLE) << endl;
-            cout << "unary\t" << (snarl->type() == UNARY) << endl;
-            
-            // Compute depth
-            auto parent = manager.parent_of(snarl);
-            
-            if (parent == nullptr) {
-                depth[snarl] = 0;
-            } else {
-                depth[snarl] = depth[parent] + 1;
-            }
-            cout << "depth\t" << depth[snarl] << endl;
-            
-            // Number of children (looking inside chains)
-            cout << "children\t" << manager.children_of(snarl).size() << endl;
-            
-            // Number of chains (including unary child snarls)
-            // Will be 0 for leaves
-            auto chains = manager.chains_of(snarl);
-            cout << "chains\t" << chains.size() << endl;
-            
-            for (auto& chain : chains) {
-                // Number of children in each chain
-                cout << "chain-size\t" << chain.size() << endl;
-            }
-            
-            // Net graph info
-            // Internal connectivity not important, we just want the size.
-            auto netGraph = manager.net_graph_of(snarl, graph.get(), false);
-            cout << "net-graph-size\t" << netGraph.get_node_count() << endl;
-            
-        });
+        manager.traverse_decomposition(
+            [&](handle_t chain_start_handle) {
+                nid_t id = graph->get_id(chain_start_handle);
+                bool rev = graph->get_is_reverse(chain_start_handle);
+                stack.emplace_back(id, rev);
+                cerr << "start chain " << id << " " << rev << endl; 
         
+            },
+            [&](handle_t chain_end_handle) {
+                nid_t id = graph->get_id(chain_end_handle);
+                bool rev = graph->get_is_reverse(chain_end_handle);
+                pair<nid_t, bool> start = stack.back();
+                stack.pop_back();
+                cerr << "end chain " << start.first << " " << start.second << "->" << id << " " << rev << endl; 
+            },
+            [&](handle_t snarl_start_handle) {
+                nid_t id = graph->get_id(snarl_start_handle);
+                bool rev = graph->get_is_reverse(snarl_start_handle);
+                stack.emplace_back(id, rev);
+                cerr << "start snarl " << id << " " << rev << endl; 
+        
+            },
+            [&](handle_t snarl_end_handle) {
+                nid_t id = graph->get_id(snarl_end_handle);
+                bool rev = graph->get_is_reverse(snarl_end_handle);
+                pair<nid_t, bool> start = stack.back();
+                stack.pop_back();
+                cerr << "end snarl " << start.first << " " << start.second << "->" << id << " " << rev << endl; 
+            });
+    }
+    if (!dist_name.empty()) {
+        ifstream in;
+        in.open(dist_name);
+        auto distance_index = vg::io::VPKG::load_one<MinimumDistanceIndex>(in);
+        distance_index->print_snarl_stats();
     }
 
     return 0;
