@@ -20,6 +20,12 @@
 
 namespace vg {
 namespace unittest {
+    TEST_CASE( "time accesses", "[time_vector]") {
+        SnarlDistanceIndex dist_index;
+        dist_index.deserialize("/public/groups/cgl/graph-genomes/xhchang/hgsvc_v2/HGSVC_hs38d1.dist.new");
+        dist_index.time_accesses();
+
+    }
     TEST_CASE( "cluster simple chain",
                    "[cluster]" ) {
         VG graph;
