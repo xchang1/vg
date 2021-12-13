@@ -358,6 +358,7 @@ void help_giraffe(char** argv) {
     << "  --fragment-mean FLOAT         force the fragment length distribution to have this mean (requires --fragment-stdev)" << endl
     << "  --fragment-stdev FLOAT        force the fragment length distribution to have this standard deviation (requires --fragment-mean)" << endl
     << "  --paired-distance-limit FLOAT cluster pairs of read using a distance limit FLOAT standard deviations greater than the mean [2.0]" << endl
+    << "                                0 indicates that the paired reads should be mapped as single-ended reads and annotates them with the distance between" << endl
     << "  --rescue-subgraph-size FLOAT  search for rescued alignments FLOAT standard deviations greater than the mean [4.0]" << endl
     << "  --rescue-seed-limit INT       attempt rescue with at most INT seeds [100]" << endl
     << "  --track-provenance            track how internal intermediate alignment candidates were arrived at" << endl
@@ -1408,7 +1409,7 @@ int main_giraffe(int argc, char** argv) {
             reset_perf_for_thread();
 #endif
 
-            if (interleaved || !fastq_filename_2.empty()) {
+            if (interleaved || !fastq_filename_2.empty() && cluster_stdev != 0) {
                 //Map paired end from either one gam or fastq file or two fastq files
 
                 // a buffer to hold read pairs that can't be unambiguously mapped before the fragment length distribution
@@ -1523,6 +1524,55 @@ int main_giraffe(int argc, char** argv) {
                     alignment_emitter->emit_mapped_pair(std::move(mapped_pairs.first), std::move(mapped_pairs.second), tlen_limit);
                     // Record that we mapped a read.
                     reads_mapped_by_thread.at(omp_get_thread_num()) += 2;
+                }
+            } else if (interleaved || !fastq_filename_2.empty() && cluster_stdev != 0) { 
+                //If we want to map paired end reads as if they're single-end
+
+                // Define how to align and output a read pair, in a thread.
+                auto map_read_pair = [&](Alignment& aln1, Alignment& aln2) {
+#ifdef __linux__
+                    ensure_perf_for_thread();
+#endif
+                    toUppercaseInPlace(*aln1.mutable_sequence());
+                    toUppercaseInPlace(*aln2.mutable_sequence());
+
+                    //Map the pairs
+                    vector<Alignment> alns1 = minimizer_mapper.map(aln1);
+                    vector<Alignment> alns2 = minimizer_mapper.map(aln2);
+
+                    //Annotate with the distances between them
+                    size_t distance_between = alns1.empty() || alns2.empty() ? std::numeric_limits<size_t>::max()
+                        : minimizer_mapper.distance_between_unoriented(alns1.front(), alns2.front());
+                    if (!alns1.empty()) { 
+                        set_annotation(alns1.front(), "fragment_length", distance_between);
+                    }
+                    if (!alns2.empty()) {
+                        set_annotation(alns2.front(), "fragment_length", distance_between);
+                    }
+
+
+                    //Emit them
+                    //TODO: Idk what tlen_limit was supposed to be but I made it 0
+                    alignment_emitter->emit_mapped_pair(std::move(alns1), std::move(alns2), 0);
+                    // Record that we mapped a read.
+                    reads_mapped_by_thread.at(omp_get_thread_num()) += 2;
+
+                };
+
+                if (!gam_filename.empty()) {
+                    // GAM file to remap
+                    get_input_file(gam_filename, [&](istream& in) {
+                        // Map pairs of reads to the emitter
+                        vg::io::for_each_interleaved_pair_parallel<Alignment>(in, map_read_pair);
+                    });
+                } else if (!fastq_filename_2.empty()) {
+                    //A pair of FASTQ files to map
+                    fastq_paired_two_files_for_each_parallel(fastq_filename_1, fastq_filename_2, map_read_pair);
+
+
+                } else if ( !fastq_filename_1.empty()) {
+                    // An interleaved FASTQ file to map, map all its pairs in parallel.
+                    fastq_paired_interleaved_for_each_parallel(fastq_filename_1, map_read_pair);
                 }
             } else {
                 // Map single-ended

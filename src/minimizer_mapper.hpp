@@ -202,6 +202,11 @@ public:
     size_t get_distance_limit(size_t read_length) const {
         return max(distance_limit, read_length + 50);
     }
+
+    /**
+     * The distance between the ends of two alignments
+     */
+    int64_t distance_between_unoriented(const Alignment& aln1, const Alignment& aln2) const;
 protected:
 
     /**
@@ -349,9 +354,9 @@ protected:
     // Helper functions.
 
     /**
-     * Get the distance between a pair of read alignments
+     * Get the distance between a pair of read alignments, from the start of the first to the end of the second
      */
-    int64_t distance_between(const Alignment& aln1, const Alignment& aln2);
+    int64_t distance_between(const Alignment& aln1, const Alignment& aln2) const ;
 
     /**
      * Convert the GaplessExtension into an alignment. This assumes that the
