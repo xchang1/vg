@@ -2767,20 +2767,24 @@ int64_t MinimizerMapper::distance_between(const Alignment& aln1, const Alignment
     return min_dist == -1 ? numeric_limits<int64_t>::max() : min_dist;
 }
 int64_t MinimizerMapper::distance_between_unoriented(const Alignment& aln1, const Alignment& aln2) const {
-    assert(aln1.path().mapping_size() != 0); 
-    assert(aln2.path().mapping_size() != 0); 
-     
+    if (aln1.path().mapping_size() == 0 || aln2.path().mapping_size() == 0){ 
+        return std::numeric_limits<size_t>::max();
+    }
     pos_t start1 = initial_position(aln1.path()); 
     pos_t start2 = initial_position(aln2.path()); 
-    reverse(start1, this->gbwt_graph.get_length(this->gbwt_graph.get_handle(id(start1))));
-    reverse(start2, this->gbwt_graph.get_length(this->gbwt_graph.get_handle(id(start2))));
     pos_t end1 = final_position(aln1.path());
     pos_t end2 = final_position(aln2.path());
+    reverse(start1, this->gbwt_graph.get_length(this->gbwt_graph.get_handle(id(start1))));
+    reverse(end2, this->gbwt_graph.get_length(this->gbwt_graph.get_handle(id(end2))));
 
     int64_t dist_left_left = distance_index.min_distance(start1, start2);
     int64_t dist_left_right = distance_index.min_distance(start1, end2);
     int64_t dist_right_left = distance_index.min_distance(end1, start2);
     int64_t dist_right_right = distance_index.min_distance(end1, end2);
+    dist_left_left = dist_left_left == -1 ? std::numeric_limits<size_t>::max() : dist_left_left;
+    dist_left_right = dist_left_right == -1 ? std::numeric_limits<size_t>::max() : dist_left_right;
+    dist_right_left = dist_right_left == -1 ? std::numeric_limits<size_t>::max() : dist_right_left;
+    dist_right_right = dist_right_right == -1 ? std::numeric_limits<size_t>::max() : dist_right_right;
     return std::min(dist_left_left, std::min(dist_left_right, std::min(dist_right_left, dist_right_right)));
 }
 

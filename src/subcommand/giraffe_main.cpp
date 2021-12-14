@@ -1409,7 +1409,7 @@ int main_giraffe(int argc, char** argv) {
             reset_perf_for_thread();
 #endif
 
-            if (interleaved || !fastq_filename_2.empty() && cluster_stdev != 0) {
+            if ((interleaved || !fastq_filename_2.empty()) && cluster_stdev != 0) {
                 //Map paired end from either one gam or fastq file or two fastq files
 
                 // a buffer to hold read pairs that can't be unambiguously mapped before the fragment length distribution
@@ -1525,7 +1525,7 @@ int main_giraffe(int argc, char** argv) {
                     // Record that we mapped a read.
                     reads_mapped_by_thread.at(omp_get_thread_num()) += 2;
                 }
-            } else if (interleaved || !fastq_filename_2.empty() && cluster_stdev != 0) { 
+            } else if (interleaved || !fastq_filename_2.empty()) { 
                 //If we want to map paired end reads as if they're single-end
 
                 // Define how to align and output a read pair, in a thread.
