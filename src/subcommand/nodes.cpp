@@ -84,7 +84,7 @@ int main_nodes(int argc, char** argv) {
     snarl_stream.close();
 
     //Load graph
-    auto graph = vg::io::VPKG::load_one<HandleGraph>(graph_name).get();
+    auto graph = vg::io::VPKG::load_one<HandleGraph>(graph_name);
 
     size_t max_snarl_size = 0;
     vg::id_t start_id = 0;
