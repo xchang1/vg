@@ -432,7 +432,9 @@ void NewSnarlSeedClusterer::add_to_snarl_tree(size_t node_index,  net_handle_t& 
         }
     }
     //Once we reach the root, add the last child and return
-    tree_state.root_children.emplace_back(node_index);
+    if (distance_index.is_root_snarl(parent_handle)) {
+        tree_state.root_children.emplace_back(node_index);
+    }
 }
 
 
