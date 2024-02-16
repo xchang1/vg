@@ -1,4 +1,4 @@
-#define DEBUG_ZIP_CODE_TREE
+//#define DEBUG_ZIP_CODE_TREE
 //#define PRINT_NON_DAG_SNARLS
 //#define DEBUG_ZIP_CODE_SORTING
 
@@ -330,7 +330,6 @@ void ZipCodeForest::add_child_to_chain(forest_growing_state_t& forest_state,
         //TODO: This is going to be veeeeeery slow
         size_t child_depth = current_seed.zipcode_decoder->max_depth();
         net_handle_t child_handle = forest_state.distance_index->get_node_net_handle(id(current_seed.pos));
-        max_child_length = forest_state.distance_index->maximum_length(child_handle);
         while (child_depth > depth) {
             child_handle = forest_state.distance_index->get_parent(child_handle);
             if (forest_state.distance_index->is_trivial_chain(child_handle)) {
@@ -338,6 +337,7 @@ void ZipCodeForest::add_child_to_chain(forest_growing_state_t& forest_state,
             }
             --child_depth;
         }
+        max_child_length = forest_state.distance_index->maximum_length(child_handle);
         max_current_offset = 0;
         if (forest_state.distance_index->is_snarl(child_handle)) {
             child_handle = forest_state.distance_index->get_node_from_sentinel(forest_state.distance_index->get_bound(child_handle, false, false));
@@ -347,7 +347,6 @@ void ZipCodeForest::add_child_to_chain(forest_growing_state_t& forest_state,
         if (chain_is_reversed) {
             size_t max_chain_length = forest_state.distance_index->maximum_length(forest_state.distance_index->get_parent(child_handle));
             
-            cerr << "Getting distance in reversed chain : " << max_chain_length << " " << max_child_length << " " << max_current_offset << endl;
             max_current_offset =  SnarlDistanceIndex::minus(max_chain_length ,
                                             SnarlDistanceIndex::sum(max_current_offset,max_child_length)) ;
         }
@@ -648,8 +647,9 @@ void ZipCodeForest::close_snarl(forest_growing_state_t& forest_state,
                 }
                 --child_depth;
             }
-            size_t max_snarl_length = forest_state.distance_index->maximum_length(snarl_handle); 
-            max_snarl_prefix_sum = SnarlDistanceIndex::minus(max_snarl_prefix_sum, max_snarl_length);
+            assert(forest_state.distance_index->is_snarl(snarl_handle));
+            size_t max_length = forest_state.distance_index->maximum_length(snarl_handle); 
+            max_snarl_prefix_sum = SnarlDistanceIndex::minus(max_snarl_prefix_sum, max_length);
 
 
             //Now update forest_state.sibling_indices_at_depth to be the previous thing in the chain
