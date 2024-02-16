@@ -289,6 +289,7 @@ void ZipCodeForest::add_child_to_chain(forest_growing_state_t& forest_state,
     ///////////////// Get the offset in the parent chain (or node)
     size_t current_offset;
     size_t max_current_offset;
+    size_t max_child_length = current_seed.zipcode_decoder->get_length(depth);//Use this for getting the maximum distance to the end of the child for the next child in the chain
 
 
     //First, get the prefix sum in the chain + offset in the node
@@ -297,6 +298,25 @@ void ZipCodeForest::add_child_to_chain(forest_growing_state_t& forest_state,
         current_offset = forest_state.sort_values_by_seed[seed_index].get_distance_value();
         //And the maximum length is the same as the minimum
         max_current_offset = current_offset;
+        if (current_type == ZipCode::NODE) {
+
+            size_t min_offset = chain_is_reversed 
+                              ? SnarlDistanceIndex::minus(current_seed.zipcode_decoder->get_length(chain_depth) ,
+                                                          SnarlDistanceIndex::sum(
+                                                              current_seed.zipcode_decoder->get_offset_in_chain(depth),
+                                                              current_seed.zipcode_decoder->get_length(depth))) 
+                              : current_seed.zipcode_decoder->get_offset_in_chain(depth);
+
+            net_handle_t node_handle = forest_state.distance_index->get_node_net_handle(id(current_seed.pos));
+            size_t max_offset = forest_state.distance_index->get_max_prefix_sum_value(node_handle); 
+            if (chain_is_reversed) {
+                size_t max_chain_length = forest_state.distance_index->maximum_length(forest_state.distance_index->get_parent(node_handle));
+                max_offset =  SnarlDistanceIndex::minus(max_chain_length ,
+                                                SnarlDistanceIndex::sum(
+                                                    max_offset, current_seed.zipcode_decoder->get_length(depth))) ;
+            }
+            max_current_offset = current_offset + (max_offset - min_offset);
+        } 
     } else {
         //Otherwise, get the distance to the start or end of the chain
 
@@ -310,6 +330,7 @@ void ZipCodeForest::add_child_to_chain(forest_growing_state_t& forest_state,
         //TODO: This is going to be veeeeeery slow
         size_t child_depth = current_seed.zipcode_decoder->max_depth();
         net_handle_t child_handle = forest_state.distance_index->get_node_net_handle(id(current_seed.pos));
+        max_child_length = forest_state.distance_index->maximum_length(child_handle);
         while (child_depth > depth) {
             child_handle = forest_state.distance_index->get_parent(child_handle);
             if (forest_state.distance_index->is_trivial_chain(child_handle)) {
@@ -325,17 +346,22 @@ void ZipCodeForest::add_child_to_chain(forest_growing_state_t& forest_state,
         max_current_offset += forest_state.distance_index->get_max_prefix_sum_value(child_handle);
         if (chain_is_reversed) {
             size_t max_chain_length = forest_state.distance_index->maximum_length(forest_state.distance_index->get_parent(child_handle));
+            
+            cerr << "Getting distance in reversed chain : " << max_chain_length << " " << max_child_length << " " << max_current_offset << endl;
             max_current_offset =  SnarlDistanceIndex::minus(max_chain_length ,
-                                            SnarlDistanceIndex::sum(
-                                                max_current_offset,
-                                                current_seed.zipcode_decoder->get_length(depth))) ;
+                                            SnarlDistanceIndex::sum(max_current_offset,max_child_length)) ;
         }
-        assert(max_current_offset >= current_offset);
     }
 
 
     /////////////////////// Get the offset of the previous thing in the parent chain/node
     size_t previous_offset = forest_state.sibling_indices_at_depth[chain_depth][0].value;
+    size_t max_previous_offset = previous_offset == 0 ? 0 : forest_state.sibling_indices_at_depth[chain_depth][0].distances.first;
+#ifdef DEBUG_ZIP_CODE_TREE
+    cerr << "\t\tGot offsets in chain min: " << current_offset << " and max " << max_current_offset << endl;
+    cerr << "\t\t and previous offsets " << previous_offset << " and max " << max_previous_offset << endl;
+    assert(max_current_offset >= current_offset);
+#endif
 
 
 #ifdef DEBUG_ZIP_CODE_TREE
@@ -366,8 +392,12 @@ void ZipCodeForest::add_child_to_chain(forest_growing_state_t& forest_state,
             max_distance_between = 0;
         } else {
             distance_between = current_offset - previous_offset;
-            max_distance_between = max_current_offset - previous_offset;
+            max_distance_between = max_current_offset - max_previous_offset;
+
+#ifdef DEBUG_ZIP_CODE_TREE
+            cerr << "\t\tGot distances to previous thing in chain min: " << distance_between << " and max " << max_distance_between << endl;
             assert(max_distance_between >= distance_between);
+#endif
         }
 
         if (chain_depth == 0 && distance_between > forest_state.distance_limit) {
@@ -494,7 +524,7 @@ void ZipCodeForest::add_child_to_chain(forest_growing_state_t& forest_state,
                 //If the slice doesn't get copied because it is still connected at the front,
                 //add the edge to the chain and remember that it could start a new slice
 
-                trees[forest_state.active_tree_index].zip_code_tree.emplace_back(ZipCodeTree::EDGE, distance_between, false, max_distance_between);
+                trees[forest_state.active_tree_index].zip_code_tree.emplace_back(ZipCodeTree::EDGE, distance_between, false, max_distance_between-distance_between);
 
                 //Remember the next seed or snarl that gets added as the start of a new chain slice
                 forest_state.open_chains.pop_back();
@@ -503,7 +533,7 @@ void ZipCodeForest::add_child_to_chain(forest_growing_state_t& forest_state,
 
         } else {
             //If we didn't start a new tree, then add the edge
-            trees[forest_state.active_tree_index].zip_code_tree.emplace_back(ZipCodeTree::EDGE, distance_between, false, max_distance_between);
+            trees[forest_state.active_tree_index].zip_code_tree.emplace_back(ZipCodeTree::EDGE, distance_between, false, max_distance_between-distance_between);
         }
     }
 
@@ -525,6 +555,7 @@ void ZipCodeForest::add_child_to_chain(forest_growing_state_t& forest_state,
         //length of the snarl
         current_offset = SnarlDistanceIndex::sum(current_offset,
             current_seed.zipcode_decoder->get_length(depth));
+        max_current_offset = SnarlDistanceIndex::sum(max_current_offset,max_child_length);
 
     }
 
@@ -533,7 +564,8 @@ void ZipCodeForest::add_child_to_chain(forest_growing_state_t& forest_state,
     forest_state.sibling_indices_at_depth[chain_depth].push_back({(
          current_type == ZipCode::NODE || current_type == ZipCode::ROOT_NODE) ? ZipCodeTree::SEED 
                                                                               : ZipCodeTree::SNARL_START,
-         current_offset}); 
+         current_offset,
+         std::make_pair(max_current_offset, 0)}); 
 #ifdef DEBUG_ZIP_CODE_TREE
     cerr << "Add sibling with type " << current_type << endl;
 #endif
@@ -736,6 +768,7 @@ void ZipCodeForest::add_snarl_distances(forest_growing_state_t& forest_state, co
                 }
                 max_distance = forest_state.distance_index->maximum_length(snarl_handle); 
                 assert(seed.zipcode_decoder->get_length(depth) == forest_state.distance_index->minimum_length(snarl_handle));
+                max_distance = max_distance - snarl_distance;
             }
 
             //Add the edge
@@ -1261,6 +1294,7 @@ void ZipCodeTree::validate_zip_tree(const SnarlDistanceIndex& distance_index,
                                                                       : is_rev(next_seed.pos);
 
             size_t tree_distance = next_seed_result.distance;
+            size_t max_tree_distance = next_seed_result.max_distance;
 
             net_handle_t start_handle = distance_index.get_node_net_handle(
                                             id(start_seed.pos),
@@ -1270,6 +1304,8 @@ void ZipCodeTree::validate_zip_tree(const SnarlDistanceIndex& distance_index,
                                             is_rev(next_seed.pos) != next_is_reversed);
 
             size_t index_distance = distance_index.minimum_distance(id(next_seed.pos), is_rev(next_seed.pos), offset(next_seed.pos),
+                    id(start_seed.pos), is_rev(start_seed.pos), offset(start_seed.pos), true);
+            size_t max_index_distance = distance_index.maximum_distance(id(next_seed.pos), is_rev(next_seed.pos), offset(next_seed.pos),
                     id(start_seed.pos), is_rev(start_seed.pos), offset(start_seed.pos), true);
 
             if (index_distance != std::numeric_limits<size_t>::max() && is_rev(next_seed.pos) != next_is_reversed) {
@@ -1317,7 +1353,7 @@ void ZipCodeTree::validate_zip_tree(const SnarlDistanceIndex& distance_index,
                     //This could be off by one if one of the seeds is reversed, but I'm being lazy and just checking against the index
                     assert((tree_distance == 0 || tree_distance == index_distance));
                 } else {
-                    if (tree_distance != index_distance) {
+                    if (tree_distance != index_distance || max_tree_distance != max_index_distance) {
                         for (auto& seed : *seeds) {
                             cerr << seed.pos << endl;
                         }
@@ -1326,9 +1362,11 @@ void ZipCodeTree::validate_zip_tree(const SnarlDistanceIndex& distance_index,
                         cerr << "Forward positions: " << start_pos << " " << next_pos << " and lengths " 
                              << start_length << " " << next_length << endl;
                         cerr << "Tree distance: " << tree_distance << " index distance: " << index_distance << endl;
+                        cerr << "Max tree distance: " << max_tree_distance << " max index distance: " << max_index_distance << endl;
                         cerr << "With distance limit: " << distance_limit << endl;
                     }
                     assert(tree_distance == index_distance);
+                    assert((max_tree_distance == max_index_distance || max_tree_distance+1 == max_index_distance));
                 }
             }
 
