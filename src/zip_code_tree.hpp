@@ -127,10 +127,14 @@ class ZipCodeTree {
         //For a seed, the index into seeds
         //For an edge, the distance value
         //Empty for a bound
-        size_t value : 59;
+        size_t value : 32;
 
         //For seeds, is the position of the seed traversed backwards in the tree?
         bool is_reversed;
+
+        //For edges, we want to know the maximum distance as well as the minimum
+        //This stores the difference between the maximum and minimum distance
+        size_t distance_difference = 27;
 
         public:
 
@@ -138,21 +142,23 @@ class ZipCodeTree {
         tree_item_t (){};
 
         //Constructor so that value gets set properly
-        tree_item_t ( tree_item_type_t type, size_t raw_value, bool is_reversed) 
-            : type(type), is_reversed(is_reversed) {
+        tree_item_t ( tree_item_type_t type, size_t raw_value, bool is_reversed, size_t distance_difference=0) 
+            : type(type), is_reversed(is_reversed), distance_difference(distance_difference) {
             if (raw_value == std::numeric_limits<size_t>::max()) {
-                value = ((size_t)1 << 59) - 1;
+                value = ((size_t)1 << 32) - 1;
             } else {
+                assert(raw_value < (((size_t)1<<31)-1));
                 value = raw_value;
             }
         }
         tree_item_type_t get_type() const { return type; }
         size_t get_value() const { 
-            return value == ((size_t)1 << 59) - 1
+            return value == ((size_t)1 << 32) - 1
                    ? std::numeric_limits<size_t>::max()
                    : value;
         }
         bool get_is_reversed() const { return is_reversed; }
+        size_t get_distance_difference() const { return distance_difference; }
     };
 
     ///Get the number of items in the tree
