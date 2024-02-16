@@ -607,6 +607,7 @@ class ZipCodeForest {
         //For the children of snarls, the distance to the left and right of the chain, that gets 
         //added to edges in the snarl
         std::pair<size_t, size_t> distances;
+        std::pair<size_t, size_t> max_distances;
 
         //Is the sibling reversed. 
         //This is only used for children of snarls, to indicate that the child is traversed 
