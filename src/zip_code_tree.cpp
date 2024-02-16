@@ -721,10 +721,24 @@ void ZipCodeForest::add_snarl_distances(forest_growing_state_t& forest_state, co
                                                     snarl_is_reversed
                                                         ? seed.zipcode_decoder->get_distance_to_snarl_end(depth+1)
                                                         : seed.zipcode_decoder->get_distance_to_snarl_start(depth+1));
+            size_t max_distance = 0;
+            if (to_snarl_end) {
+                size_t child_depth = seed.zipcode_decoder->max_depth();
+                net_handle_t snarl_handle = forest_state.distance_index->get_node_net_handle(id(seed.pos));
+                while (child_depth > depth) {
+                    snarl_handle = forest_state.distance_index->get_parent(snarl_handle);
+                    if (forest_state.distance_index->is_trivial_chain(snarl_handle)) {
+                        snarl_handle = forest_state.distance_index->get_parent(snarl_handle);
+                    }
+                    --child_depth;
+                }
+                max_distance = forest_state.distance_index->maximum_length(snarl_handle); 
+                assert(seed.zipcode_decoder->get_length(depth) == forest_state.distance_index->minimum_length(snarl_handle));
+            }
 
             //Add the edge
             trees[forest_state.active_tree_index].zip_code_tree.at(last_child_index - 1 - sibling_i) = 
-                {ZipCodeTree::EDGE, snarl_distance, false};
+                {ZipCodeTree::EDGE, snarl_distance, false, max_distance};
 
         } else {
             //Otherwise, the previous thing was another child of the snarl
