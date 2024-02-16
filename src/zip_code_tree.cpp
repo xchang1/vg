@@ -1,4 +1,4 @@
-//#define DEBUG_ZIP_CODE_TREE
+#define DEBUG_ZIP_CODE_TREE
 //#define PRINT_NON_DAG_SNARLS
 //#define DEBUG_ZIP_CODE_SORTING
 
@@ -360,6 +360,7 @@ void ZipCodeForest::add_child_to_chain(forest_growing_state_t& forest_state,
 #ifdef DEBUG_ZIP_CODE_TREE
     cerr << "\t\tGot offsets in chain min: " << current_offset << " and max " << max_current_offset << endl;
     cerr << "\t\t and previous offsets " << previous_offset << " and max " << max_previous_offset << endl;
+    assert(max_previous_offset >= previous_offset);
     assert(max_current_offset >= current_offset);
 #endif
 
@@ -567,7 +568,7 @@ void ZipCodeForest::add_child_to_chain(forest_growing_state_t& forest_state,
          current_offset,
          std::make_pair(max_current_offset, 0)}); 
 #ifdef DEBUG_ZIP_CODE_TREE
-    cerr << "Add sibling with type " << current_type << endl;
+    cerr << "Add sibling with type " << current_type << " with max offset " << max_current_offset << endl;
 #endif
 
 }
@@ -626,21 +627,38 @@ void ZipCodeForest::close_snarl(forest_growing_state_t& forest_state,
 
             //This was the distance from the last thing to the start of this snarl
             size_t previous_edge = trees[forest_state.active_tree_index].zip_code_tree.back().get_value();
+            size_t max_previous_edge = SnarlDistanceIndex::sum(previous_edge,
+                                       trees[forest_state.active_tree_index].zip_code_tree.back().get_distance_difference());
             trees[forest_state.active_tree_index].zip_code_tree.pop_back();
 
             //This is the distance from the start of the chain to the end of the snarl
             size_t snarl_prefix_sum = forest_state.sibling_indices_at_depth[depth-1].back().value;
+            size_t max_snarl_prefix_sum = forest_state.sibling_indices_at_depth[depth-1].back().distances.first;
             forest_state.sibling_indices_at_depth[depth-1].pop_back();
 
             //Snarl prefix sum is now the distance from the start of the chain to the start of the snarl
             snarl_prefix_sum = SnarlDistanceIndex::minus(snarl_prefix_sum, last_seed.zipcode_decoder->get_length(depth));
+
+            size_t child_depth = last_seed.zipcode_decoder->max_depth();
+            net_handle_t snarl_handle = forest_state.distance_index->get_node_net_handle(id(last_seed.pos));
+            while (child_depth > depth) {
+                snarl_handle = forest_state.distance_index->get_parent(snarl_handle);
+                if (forest_state.distance_index->is_trivial_chain(snarl_handle)) {
+                    snarl_handle = forest_state.distance_index->get_parent(snarl_handle);
+                }
+                --child_depth;
+            }
+            size_t max_snarl_length = forest_state.distance_index->maximum_length(snarl_handle); 
+            max_snarl_prefix_sum = SnarlDistanceIndex::minus(max_snarl_prefix_sum, max_snarl_length);
+
 
             //Now update forest_state.sibling_indices_at_depth to be the previous thing in the chain
             forest_state.sibling_indices_at_depth[depth-1].push_back({
                 trees[forest_state.active_tree_index].zip_code_tree.back().get_type() == ZipCodeTree::SEED 
                     ? ZipCodeTree::SEED 
                     : ZipCodeTree::SNARL_START,
-                SnarlDistanceIndex::minus(snarl_prefix_sum, previous_edge)});
+                SnarlDistanceIndex::minus(snarl_prefix_sum, previous_edge),
+                std::make_pair(SnarlDistanceIndex::minus(max_snarl_prefix_sum, max_previous_edge), 0)});
 
             if (depth > 0 && forest_state.open_chains.size() > 0 
                 && forest_state.open_chains.back().first >= trees[forest_state.active_tree_index].zip_code_tree.size()) {
