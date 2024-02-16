@@ -324,11 +324,13 @@ void ZipCodeForest::add_child_to_chain(forest_growing_state_t& forest_state,
         }
         max_current_offset += forest_state.distance_index->get_max_prefix_sum_value(child_handle);
         if (chain_is_reversed) {
-            max_current_offset =  SnarlDistanceIndex::minus(current_seed.zipcode_decoder->get_length(chain_depth) ,
+            size_t max_chain_length = forest_state.distance_index->maximum_length(forest_state.distance_index->get_parent(child_handle));
+            max_current_offset =  SnarlDistanceIndex::minus(max_chain_length ,
                                             SnarlDistanceIndex::sum(
                                                 max_current_offset,
                                                 current_seed.zipcode_decoder->get_length(depth))) ;
         }
+        assert(max_current_offset >= current_offset);
     }
 
 
