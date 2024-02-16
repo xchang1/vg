@@ -196,10 +196,11 @@ public:
      */
     struct seed_result_t : public oriented_seed_t {
         size_t distance;
+        size_t max_distance;
 
         /// Compare to other instances. TODO: Use default when we get C++20. 
         inline bool operator==(const seed_result_t& other) const {
-            return distance == other.distance && oriented_seed_t::operator==((oriented_seed_t)other);
+            return distance == other.distance && max_distance == other.max_distance && oriented_seed_t::operator==((oriented_seed_t)other);
         }
 
         /// Compare to other instances. TODO: Use default when we get C++20. 
@@ -302,20 +303,20 @@ public:
         vector<tree_item_t>::const_reverse_iterator rend;
         /// Distance limit we will go up to
         size_t distance_limit;
-        /// Stack for computing distances
-        std::stack<size_t> stack;
+        /// Stack for computing distances. Pair of min and max distances
+        std::stack<std::pair<size_t, size_t>> stack;
 
         // Now we define a mini stack language so we can do a
         // not-really-a-pushdown-automaton to parse the distance strings.
     
         /// Push a value to the stack
-        void push(size_t value);
+        void push(std::pair<size_t, size_t> value);
 
         /// Pop a value from the stack and return it
-        size_t pop();
+        std::pair<size_t, size_t> pop();
 
         /// Get a mutable reference to the value on top of the stack
-        size_t& top();
+        std::pair<size_t, size_t>& top();
 
         /// Duplicate the top item on the stack
         void dup();

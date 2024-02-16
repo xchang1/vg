@@ -1573,21 +1573,22 @@ auto ZipCodeTree::reverse_iterator::operator*() const -> seed_result_t {
     seed_result_t to_return;
     to_return.seed = it->get_value();
     to_return.is_reverse = it->get_is_reversed();
-    to_return.distance = stack.top();
+    to_return.distance = stack.top().first;
+    to_return.max_distance = stack.top().second;
     return to_return;
 }
 
-auto ZipCodeTree::reverse_iterator::push(size_t value) -> void {
+auto ZipCodeTree::reverse_iterator::push(std::pair<size_t, size_t> value) -> void {
     stack.push(value);
 }
 
-auto ZipCodeTree::reverse_iterator::pop() -> size_t {
-    size_t value = stack.top();
+auto ZipCodeTree::reverse_iterator::pop() -> std::pair<size_t, size_t> {
+    std::pair<size_t, size_t> value = stack.top();
     stack.pop();
     return value;
 }
 
-auto ZipCodeTree::reverse_iterator::top() -> size_t& {
+auto ZipCodeTree::reverse_iterator::top() -> std::pair<size_t, size_t>& {
     crash_unless(depth() > 0);
     return stack.top();
 }
@@ -1602,7 +1603,7 @@ auto ZipCodeTree::reverse_iterator::depth() const -> size_t {
 
 auto ZipCodeTree::reverse_iterator::swap() -> void {
     // Grab the top item
-    size_t temp = stack.top();
+    std::pair<size_t, size_t> temp = stack.top();
     stack.pop();
     // Swap it with what was under it
     std::swap(temp, stack.top());
@@ -1635,7 +1636,7 @@ auto ZipCodeTree::reverse_iterator::tick() -> bool {
 #ifdef debug_parse
             std::cerr << "Skip over seed " << it->get_value() << std::endl;
 #endif
-            push(0);
+            push(std::make_pair(0, 0));
             state(S_SCAN_CHAIN);
             break;
         default:
@@ -1654,7 +1655,7 @@ auto ZipCodeTree::reverse_iterator::tick() -> bool {
             // Emit seed here with distance at top of stack.
             crash_unless(depth() > 0);
 #ifdef debug_parse
-            std::cerr << "Yield seed " << it->get_value() << ", distance " << top() << std::endl;
+            std::cerr << "Yield seed " << it->get_value() << ", min and max distances " << top().first << ", " << top().second << std::endl;
 #endif
             return true;
             break;
@@ -1683,8 +1684,9 @@ auto ZipCodeTree::reverse_iterator::tick() -> bool {
         case EDGE:
             // Distance between things in a chain.
             // Add value into running distance, maxing it if value is max.
-            top() = SnarlDistanceIndex::sum(top(), it->get_value());
-            if (top() > distance_limit || top() == std::numeric_limits<size_t>::max()) {
+            top().first = SnarlDistanceIndex::sum(top().first, it->get_value());
+            top().second = SnarlDistanceIndex::sum(top().second, SnarlDistanceIndex::sum(it->get_value(), it->get_distance_difference()));
+            if (top().first > distance_limit || top().first == std::numeric_limits<size_t>::max()) {
                 // Skip over the rest of this chain
                 if (depth() == 1) {
                     // We never entered the parent snarl of this chain.
@@ -1696,7 +1698,7 @@ auto ZipCodeTree::reverse_iterator::tick() -> bool {
                 } else {
                     // We need to try the next thing in the parent snarl, so skip the rest of the chain.
                     // We're skipping in 0 nested snarls right now.
-                    push(0);
+                    push(std::make_pair(0, 0));
                     state(S_SKIP_CHAIN);
                 }
             }
@@ -1718,7 +1720,8 @@ auto ZipCodeTree::reverse_iterator::tick() -> bool {
             dup();
             // Add in the edge value to make a running distance for the thing this edge is for.
             // Account for if the edge is actually unreachable.
-            top() = SnarlDistanceIndex::sum(top(), it->get_value());
+            top().first = SnarlDistanceIndex::sum(top().first, it->get_value());
+            top().second = SnarlDistanceIndex::sum(top().second, SnarlDistanceIndex::sum(it->get_distance_difference(), it->get_value()));
             // Flip top 2 elements, so now parent running distance is on top, over edge running distance.
             swap();
             break;
@@ -1733,9 +1736,9 @@ auto ZipCodeTree::reverse_iterator::tick() -> bool {
                 return true;
             } else {
                 // So now we have the running distance for this next chain.
-                if (top() > distance_limit || top() == std::numeric_limits<size_t>::max()) {
+                if (top().first > distance_limit || top().first == std::numeric_limits<size_t>::max()) {
                     // Running distance is already too high so skip over the chain
-                    push(0);
+                    push(std::make_pair(0, 0));
                     state(S_SKIP_CHAIN);
                 } else {
                     // Do the chain
@@ -1792,9 +1795,9 @@ auto ZipCodeTree::reverse_iterator::tick() -> bool {
         case CHAIN_END:
             // We've encountered a chain to look at, and the running distance
             // into the chain is already on the stack.
-            if (top() > distance_limit || top() == std::numeric_limits<size_t>::max()) {
+            if (top().first > distance_limit || top().first == std::numeric_limits<size_t>::max()) {
                 // Running distance is already too high so skip over the chain
-                push(0);
+                push(std::make_pair(0, 0));
                 state(S_SKIP_CHAIN);
             } else {
                 // Do the chain
@@ -1833,14 +1836,16 @@ auto ZipCodeTree::reverse_iterator::tick() -> bool {
             break;
         case SNARL_START:
             // We might now be able to match chain starts again
-            top() -= 1;
+            top().first -= 1;
+            top().second -= 1;
             break;
         case SNARL_END:
             // We can't match chain starts until we leave the snarl
-            top() += 1;
+            top().first += 1;
+            top().second += 1;
             break;
         case CHAIN_START:
-            if (top() == 0) {
+            if (top().first == 0) {
                 // Parent snarl may be a top-level snarl.
                 if (depth() == 1) {
                     // We have hit the start of a top-level snarl
