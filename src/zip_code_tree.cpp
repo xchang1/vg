@@ -108,8 +108,11 @@ void ZipCodeForest::open_chain(forest_growing_state_t& forest_state,
                 }
                 --child_depth;
             }
-            size_t max_prefix_sum = forest_state.distance_index->get_max_prefix_sum_value(child_handle);
-            size_t min_prefix_sum = forest_state.distance_index->get_prefix_sum_value(child_handle);
+            net_handle_t child_node_handle = forest_state.distance_index->is_snarl(child_handle) 
+                                           ? forest_state.distance_index->get_node_from_sentinel(forest_state.distance_index->get_bound(child_handle, false, false))
+                                           : child_handle;
+            size_t max_prefix_sum = forest_state.distance_index->get_max_prefix_sum_value(child_node_handle);
+            size_t min_prefix_sum = forest_state.distance_index->get_prefix_sum_value(child_node_handle);
             if (chain_is_reversed) {
                 min_prefix_sum = SnarlDistanceIndex::minus(SnarlDistanceIndex::minus(current_seed.zipcode_decoder->get_length(depth), 
                                                                                      min_prefix_sum),
@@ -398,7 +401,10 @@ void ZipCodeForest::add_child_to_chain(forest_growing_state_t& forest_state,
             child_handle = forest_state.distance_index->get_node_from_sentinel(forest_state.distance_index->get_bound(child_handle, false, false));
             max_current_offset += forest_state.distance_index->minimum_length(child_handle);
         }
-        max_current_offset += forest_state.distance_index->get_max_prefix_sum_value(child_handle);
+        net_handle_t child_node_handle = forest_state.distance_index->is_snarl(child_handle) 
+                                       ? forest_state.distance_index->get_node_from_sentinel(forest_state.distance_index->get_bound(child_handle, false, false))
+                                       : child_handle;
+        max_current_offset += forest_state.distance_index->get_max_prefix_sum_value(child_node_handle);
         if (chain_is_reversed) {
             size_t max_chain_length = forest_state.distance_index->maximum_length(forest_state.distance_index->get_parent(child_handle));
             
