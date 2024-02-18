@@ -214,6 +214,7 @@ void ZipCodeForest::close_chain(forest_growing_state_t& forest_state,
         }
         size_t max_distance_to_chain_end = SnarlDistanceIndex::minus(forest_state.distance_index->maximum_length(chain_handle),
                                       forest_state.sibling_indices_at_depth[depth].back().distances.first);
+        cerr << "For chain " << forest_state.distance_index->net_handle_as_string(chain_handle) << " adding max distance to end " << max_distance_to_chain_end << endl;
         bool add_distances = true;
         if (distance_to_chain_end > forest_state.distance_limit && forest_state.open_chains.back().second) {
             //If the distance to the end is greater than the distance limit, and there was something
@@ -298,6 +299,21 @@ void ZipCodeForest::close_chain(forest_growing_state_t& forest_state,
                 distance_to_chain_end = SnarlDistanceIndex::sum(distance_to_chain_end, 
                                         SnarlDistanceIndex::sum(last_edge,
                                                                 last_length));
+
+                size_t child_depth = last_seed.zipcode_decoder->max_depth();
+                net_handle_t child_handle = forest_state.distance_index->get_node_net_handle(id(last_seed.pos));
+                while (child_depth > depth+1) {
+                    child_handle = forest_state.distance_index->get_parent(child_handle);
+                    if (forest_state.distance_index->is_trivial_chain(child_handle)) {
+                        child_handle = forest_state.distance_index->get_parent(child_handle);
+                    }
+                    --child_depth;
+                }
+                size_t max_last_length = forest_state.distance_index->maximum_length(child_handle);
+
+                max_distance_to_chain_end = SnarlDistanceIndex::sum(max_distance_to_chain_end,
+                                            SnarlDistanceIndex::sum(last_edge,
+                                            max_last_length));
             }
         }
         if (add_distances) {
@@ -307,6 +323,7 @@ void ZipCodeForest::close_chain(forest_growing_state_t& forest_state,
             //remember the distance to the end to be used in snarl distances
             forest_state.sibling_indices_at_depth[depth-1].back().distances.second = distance_to_chain_end;
             forest_state.sibling_indices_at_depth[depth-1].back().max_distances.second = max_distance_to_chain_end;
+            cerr << "ADDING DISTANCES TO END " << distance_to_chain_end << " AND " << max_distance_to_chain_end << endl;
 
             bool snarl_is_reversed = forest_state.open_intervals[forest_state.open_intervals.size()-2].is_reversed;
             bool is_cyclic_snarl =  forest_state.open_intervals[forest_state.open_intervals.size()-2].code_type 
@@ -811,9 +828,7 @@ void ZipCodeForest::add_snarl_distances(forest_growing_state_t& forest_state, co
 
 
     //Distances from this child to add 
-    size_t distance_to_chain_end = to_snarl_end ? 0 : forest_state.sibling_indices_at_depth[depth].back().distances.second;
     size_t distance_to_chain_start = to_snarl_end ? 0 : forest_state.sibling_indices_at_depth[depth].back().distances.first;
-    size_t max_distance_to_chain_end = to_snarl_end ? 0 : forest_state.sibling_indices_at_depth[depth].back().max_distances.second;
     size_t max_distance_to_chain_start = to_snarl_end ? 0 : forest_state.sibling_indices_at_depth[depth].back().max_distances.first;
     
     // This is the index of the thing in the snarl right before the distances start. Used to figure out
@@ -882,7 +897,8 @@ void ZipCodeForest::add_snarl_distances(forest_growing_state_t& forest_state, co
                 //If this is the child of a regular snarl, then the distance between
                 //any two chains is inf, and the distance to any bound is 0
                 distance = to_snarl_end ? sibling.distances.second : std::numeric_limits<size_t>::max();
-                max_distance = distance;
+                max_distance = to_snarl_end ? sibling.max_distances.second : std::numeric_limits<size_t>::max();
+                cerr <<"Max distance from sibling " << sibling.max_distances.second << endl;
             } else {
                 size_t seed_i = sibling.value+1;
                 while (trees[forest_state.active_tree_index].zip_code_tree[seed_i].get_type() != ZipCodeTree::SEED) {
@@ -895,7 +911,10 @@ void ZipCodeForest::add_snarl_distances(forest_growing_state_t& forest_state, co
                     distance = SnarlDistanceIndex::sum(sibling.distances.second,
                                           snarl_is_reversed ? sibling_seed.zipcode_decoder->get_distance_to_snarl_start(depth+1)
                                                             : sibling_seed.zipcode_decoder->get_distance_to_snarl_end(depth+1));
-                    max_distance = distance;
+                    max_distance = SnarlDistanceIndex::sum(sibling.max_distances.second,
+                                          snarl_is_reversed ? sibling_seed.zipcode_decoder->get_distance_to_snarl_start(depth+1)
+                                                            : sibling_seed.zipcode_decoder->get_distance_to_snarl_end(depth+1));
+                    cerr << "Max distance with sibling's max distance " << sibling.max_distances.second << endl;
                 } else {
 
                     //If to_snarl_end is true, then we want the distance to the end (or start if snarl_is_reversed)
@@ -912,6 +931,8 @@ void ZipCodeForest::add_snarl_distances(forest_growing_state_t& forest_state, co
 
                     size_t distance_to_end_of_last_child = sibling.type == ZipCodeTree::SNARL_START ? 0
                                                      : sibling.distances.second;
+                    size_t max_distance_to_end_of_last_child = sibling.type == ZipCodeTree::SNARL_START ? 0
+                                                     : sibling.max_distances.second;
                     //The bools for this are true if the distance is to/from the right side of the child
                     //We want the right side of 1 (which comes first in the dag ordering) to the left side of 2
                     //relative to the orientation of the snarl
@@ -923,9 +944,10 @@ void ZipCodeForest::add_snarl_distances(forest_growing_state_t& forest_state, co
                     cerr << "ADD MAX DISTANCE TO START " << max_distance_to_chain_start << endl;
                     max_distance = SnarlDistanceIndex::sum(SnarlDistanceIndex::sum(distance_in_snarl,
                                                                                max_distance_to_chain_start),
-                                                                               distance_to_end_of_last_child);
+                                                                               max_distance_to_end_of_last_child);
                 }
             }
+            cerr << "Distances " << distance << " AND " << max_distance << endl;
             assert(max_distance >= distance);
             trees[forest_state.active_tree_index].zip_code_tree.at(last_child_index - 1 - sibling_i) 
                     = {ZipCodeTree::EDGE, distance, false, max_distance - distance};
