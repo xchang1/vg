@@ -263,7 +263,7 @@ void sort_anchor_indexes(const std::vector<Anchor>& items, std::vector<size_t>& 
  * Takes two anchor numbers (source and destination), and their read and graph
  * distances, in that order.
  */
-using transition_iteratee = std::function<void(size_t from_anchor, size_t to_anchor, size_t read_distance, size_t graph_distance)>;
+using transition_iteratee = std::function<void(size_t from_anchor, size_t to_anchor, size_t read_distance, size_t min_graph_distance, size_t max_graph_distance)>;
 
 /**
  * Iterator function type which lets you iterate over transitions between
@@ -407,7 +407,7 @@ int score_best_chain(const VectorView<Anchor>& to_chain, const SnarlDistanceInde
 int score_chain_gap(size_t distance_difference, size_t average_anchor_length);
 
 /// Get distance in the graph, or std::numeric_limits<size_t>::max() if unreachable or beyond the limit.
-size_t get_graph_distance(const Anchor& from, const Anchor& to, const SnarlDistanceIndex& distance_index, const HandleGraph& graph, size_t distance_limit = std::numeric_limits<size_t>::max());
+std::pair<size_t, size_t> get_graph_distances(const Anchor& from, const Anchor& to, const SnarlDistanceIndex& distance_index, const HandleGraph& graph, size_t distance_limit = std::numeric_limits<size_t>::max());
 
 /// Get distance in the read, or std::numeric_limits<size_t>::max() if unreachable.
 size_t get_read_distance(const Anchor& from, const Anchor& to);

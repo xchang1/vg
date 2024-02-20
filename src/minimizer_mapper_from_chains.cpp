@@ -2011,19 +2011,19 @@ Alignment MinimizerMapper::find_chain_alignment(
         size_t link_start = (*here).read_end();
         size_t link_length = (*next).read_start() - link_start;
         string linking_bases = aln.sequence().substr(link_start, link_length);
-        size_t graph_length = algorithms::get_graph_distance(*here, *next, *distance_index, gbwt_graph);
+        pair<size_t, size_t> graph_lengths = algorithms::get_graph_distances(*here, *next, *distance_index, gbwt_graph);
         
 #ifdef debug_chain_alignment
         if (show_work) {
             #pragma omp critical (cerr)
             {
                 cerr << log_name() << "Need to align graph from " << (*here).graph_end() << " to " << (*next).graph_start()
-                    << " separated by " << graph_length << " bp and sequence \"" << linking_bases << "\"" << endl;
+                    << " separated by " << graph_lengths.first << "-" << graph_lengths.second << " bp and sequence \"" << linking_bases << "\"" << endl;
             }
         }
 #endif
         
-        if (link_length == 0 && graph_length == 0) {
+        if (link_length == 0 && graph_lengths.first == 0) {
             // These items abut in the read and the graph, so we assume we can just connect them.
             // WFAExtender::connect() can't handle an empty read sequence, and
             // our fallback method to align just against the graph can't handle
@@ -2054,7 +2054,7 @@ Alignment MinimizerMapper::find_chain_alignment(
             
             if (!link_alignment) {
                 // We couldn't align.
-                if (graph_length == 0) {
+                if (graph_lengths.first == 0) {
                     // We had read sequence but no graph sequence.
                     // Try falling back to a pure insertion.
                     // TODO: We can be leaving the GBWT's space here!
@@ -2073,7 +2073,7 @@ Alignment MinimizerMapper::find_chain_alignment(
             } else if (link_alignment.length != linking_bases.size()) {
                 // We could align, but we didn't get the alignment we expected. This shouldn't happen for a middle piece that can't softclip.
                 stringstream ss;
-                ss << "Aligning anchored link " << linking_bases << " (" << linking_bases.size() << " bp) from " << left_anchor << " - " << (*next).graph_start() << " against graph distance " << graph_length << " produced wrong-length alignment ";
+                ss << "Aligning anchored link " << linking_bases << " (" << linking_bases.size() << " bp) from " << left_anchor << " - " << (*next).graph_start() << " against graph distance " << graph_lengths.first << "-" << graph_lengths.second << " produced wrong-length alignment ";
                 link_alignment.print(ss);
                 throw ChainAlignmentFailedError(ss.str());
             } else {
@@ -2109,7 +2109,7 @@ Alignment MinimizerMapper::find_chain_alignment(
 #ifdef debug_chain_alignment
                 #pragma omp critical (cerr)
                 {
-                    cerr << "warning[MinimizerMapper::find_chain_alignment]: Refusing to align " << link_length << " bp connection between chain items " << to_chain.backing_index(*here_it) << " and " << to_chain.backing_index(*next_it) << " which are " << graph_length << " apart at " << (*here).graph_end() << " and " << (*next).graph_start() << " in " << aln.name() << " to avoid overflow" << endl;
+                    cerr << "warning[MinimizerMapper::find_chain_alignment]: Refusing to align " << link_length << " bp connection between chain items " << to_chain.backing_index(*here_it) << " and " << to_chain.backing_index(*next_it) << " which are " << graph_lengths.first << "-" << graph_lengths.second << " apart at " << (*here).graph_end() << " and " << (*next).graph_start() << " in " << aln.name() << " to avoid overflow" << endl;
                 }
 #endif
                 // Just jump to right tail
@@ -2121,7 +2121,7 @@ Alignment MinimizerMapper::find_chain_alignment(
             // long of a sequence to find a connecting path.
             #pragma omp critical (cerr)
             {
-                cerr << "warning[MinimizerMapper::find_chain_alignment]: Falling back to non-GBWT alignment of " << link_length << " bp connection between chain items " << to_chain.backing_index(*here_it) << " and " << to_chain.backing_index(*next_it) << " which are " << graph_length << " apart at " << (*here).graph_end() << " and " << (*next).graph_start() << " in " << aln.name() << endl;
+                cerr << "warning[MinimizerMapper::find_chain_alignment]: Falling back to non-GBWT alignment of " << link_length << " bp connection between chain items " << to_chain.backing_index(*here_it) << " and " << to_chain.backing_index(*next_it) << " which are " << graph_lengths.first << "-" << graph_lengths.second << " apart at " << (*here).graph_end() << " and " << (*next).graph_start() << " in " << aln.name() << endl;
             }
 #endif
             
@@ -2132,7 +2132,7 @@ Alignment MinimizerMapper::find_chain_alignment(
             }
             // Guess how long of a graph path we ought to allow in the alignment.
             size_t max_gap_length = this->get_regular_aligner()->longest_detectable_gap(aln, aln.sequence().begin() + link_start);
-            size_t path_length = std::max(graph_length, link_length);
+            size_t path_length = std::max(graph_lengths.second, link_length);
             MinimizerMapper::align_sequence_between((*here).graph_end(), (*next).graph_start(), path_length, max_gap_length, &this->gbwt_graph, this->get_regular_aligner(), link_aln, &aln.name(), this->max_dp_cells, this->choose_band_padding);
             link_alignment_source = "align_sequence_between";
             
