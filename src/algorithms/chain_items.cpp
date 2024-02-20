@@ -261,7 +261,9 @@ transition_iterator zip_tree_transition_iterator(const std::vector<SnarlDistance
                 return;
             }
             // Consume the length. 
-            min_graph_distance -= distance_to_remove;
+            min_graph_distance = distance_to_remove > min_graph_distance 
+                               ? 0
+                               : min_graph_distance - distance_to_remove;
             max_graph_distance -= distance_to_remove;
 
 #ifdef debug_transition
