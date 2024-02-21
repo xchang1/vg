@@ -2132,7 +2132,7 @@ Alignment MinimizerMapper::find_chain_alignment(
             }
             // Guess how long of a graph path we ought to allow in the alignment.
             size_t max_gap_length = this->get_regular_aligner()->longest_detectable_gap(aln, aln.sequence().begin() + link_start);
-            size_t path_length = std::max(graph_lengths.second, link_length);
+            size_t path_length = std::max(graph_lengths.first, link_length);
             MinimizerMapper::align_sequence_between((*here).graph_end(), (*next).graph_start(), path_length, max_gap_length, &this->gbwt_graph, this->get_regular_aligner(), link_aln, &aln.name(), this->max_dp_cells, this->choose_band_padding);
             link_alignment_source = "align_sequence_between";
             
