@@ -457,7 +457,7 @@ TracedScore chain_items_dp(vector<TracedScore>& chain_scores,
 
         //Get the indel length that takes into account the max length. This is just used for scoring so it won't allow 
         // big gaps due to the max length
-        size_t indel_length_including_max = indel_length;
+        size_t indel_length_including_max = 0;
         if (read_distance > max_graph_distance) {
             indel_length_including_max = read_distance - max_graph_distance;
         } else if (read_distance < min_graph_distance) {
