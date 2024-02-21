@@ -453,11 +453,15 @@ TracedScore chain_items_dp(vector<TracedScore>& chain_scores,
         int jump_points;
             
         // Decide how much length changed
-        size_t indel_length = 0;
+        size_t indel_length = (read_distance > min_graph_distance) ? read_distance - min_graph_distance : min_graph_distance - read_distance;
+
+        //Get the indel length that takes into account the max length. This is just used for scoring so it won't allow 
+        // big gaps due to the max length
+        size_t indel_length_including_max = indel_length;
         if (read_distance > max_graph_distance) {
-            indel_length = read_distance - max_graph_distance;
+            indel_length_including_max = read_distance - max_graph_distance;
         } else if (read_distance < min_graph_distance) {
-            indel_length = min_graph_distance - read_distance;
+            indel_length_including_max = min_graph_distance - read_distance;
         }
         
         if (show_work) {
@@ -491,7 +495,7 @@ TracedScore chain_items_dp(vector<TracedScore>& chain_scores,
             //
             // But we account for anchor length in the item points, so don't use it
             // here.
-            jump_points = -score_chain_gap(indel_length, average_anchor_length) * gap_scale;
+            jump_points = -score_chain_gap(indel_length_including_max, average_anchor_length) * gap_scale;
         }
             
         if (jump_points != numeric_limits<int>::min()) {
