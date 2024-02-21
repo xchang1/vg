@@ -254,7 +254,7 @@ transition_iterator zip_tree_transition_iterator(const std::vector<SnarlDistance
             std::cerr << "\tZip code tree sees " << min_graph_distance << "-" << max_graph_distance << " but we should back out " << distance_to_remove << std::endl;
 #endif
 
-            if (distance_to_remove > max_graph_distance) {
+            if (distance_to_remove > min_graph_distance) {
                 // We actually end further along the graph path to the next
                 // thing than where the next thing starts, so we can't actually
                 // get there.
