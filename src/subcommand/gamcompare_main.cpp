@@ -31,6 +31,7 @@ void help_gamcompare(char** argv) {
          << "    -T, --tsv                  output TSV (correct, mq, aligner, read) compatible with plot-qq.R instead of GAM" << endl
          << "    -a, --aligner              aligner name for TSV output [\"vg\"]" << endl
          << "    -s, --score-alignment      get a correctness score of the alignment (higher is better)" << endl
+         << "    -R, --reference-path PATH  which reference path gets used to determine eligibility. Default is to use all given" << endl
          << "    -t, --threads N            number of threads to use" << endl;
 }
 
@@ -97,6 +98,7 @@ int main_gamcompare(int argc, char** argv) {
     string aligner_name = "vg";
     bool score_alignment = false;
     string distance_name;
+    string reference_path;
     // Map from query contigs to corresponding truth contigs
     std::unordered_map<string, string> renames;
 
@@ -112,12 +114,13 @@ int main_gamcompare(int argc, char** argv) {
             {"tsv", no_argument, 0, 'T'},
             {"aligner", required_argument, 0, 'a'},
             {"score-alignment", no_argument, 0, 's'},
+            {"reference-path", no_argument, 0, 'R'},
             {"threads", required_argument, 0, 't'},
             {0, 0, 0, 0}
         };
 
         int option_index = 0;
-        c = getopt_long (argc, argv, "hd:r:n:Ta:st:",
+        c = getopt_long (argc, argv, "hd:r:n:Ta:sR:t:",
                          long_options, &option_index);
 
         // Detect the end of the options.
@@ -163,6 +166,10 @@ int main_gamcompare(int argc, char** argv) {
             score_alignment = true;
             break;
 
+        case 'R':
+            reference_path = optarg;
+            break;
+
         case 't':
             threads = parse<int>(optarg);
             omp_set_num_threads(threads);
@@ -187,10 +194,23 @@ int main_gamcompare(int argc, char** argv) {
     // to sets of (sequence offset, is_reverse). There is usually either one position per
     // alignment or one position per node.
     vg::string_hash_map<string, map<string, vector<pair<size_t, bool> > > > true_path_positions;
-    function<void(Alignment&)> record_path_positions = [&true_path_positions](Alignment& aln) {
+    function<void(Alignment&)> record_path_positions = [&true_path_positions,reference_path](Alignment& aln) {
         auto val = alignment_refpos_to_path_offsets(aln);
+        if (reference_path.empty()) {
 #pragma omp critical (truth_table)
-        true_path_positions[aln.name()] = val;
+            true_path_positions[aln.name()] = val;
+        } else {
+            //Check if the path position is on the given reference path
+            //TODO: there must be a better way of doing this
+            map<string, vector<pair<size_t, bool> > > filtered_val;
+            for (auto& item : val) {
+                if (item.first.find(reference_path) != std::string::npos) {
+                    filtered_val[item.first] = item.second;
+                }
+            }
+#pragma omp critical (truth_table)
+            true_path_positions[aln.name()] = filtered_val;
+        }
     };
 
     // True graph positions. For each alignment name, we find the maximal read intervals that correspond
