@@ -2603,8 +2603,11 @@ void ZipCodeForest::get_cyclic_snarl_intervals( forest_growing_state_t& forest_s
         size_t chain_range_start;
         size_t chain_range_end;
 
+        //Identifier for the chain that the run is on
+        size_t chain_id : 32;
+
         //Information from the original interval
-        size_t depth;
+        size_t depth : 32;
         ZipCode::code_type_t code_type;
         bool is_reversed;
 
@@ -2759,6 +2762,7 @@ void ZipCodeForest::get_cyclic_snarl_intervals( forest_growing_state_t& forest_s
             run_t seed_run({sort_i - snarl_interval.interval_start,
                             read_offset, read_offset,
                             chain_offset, chain_offset,
+                            interval_i,
                             child_interval.depth,
                             child_interval.code_type,
                             child_interval.is_reversed,
@@ -2792,6 +2796,7 @@ void ZipCodeForest::get_cyclic_snarl_intervals( forest_growing_state_t& forest_s
                 //A seed is reachable with a run if they are both on the same strand on the read,
                 //the seed is close enough in the read, and if the seed is close enough in the chain 
 
+                //TODO: Also make sure its facing the right way in the read. idk why this is commented out
                 if (//is_reversed_read == run_itr->is_reversed_read &&
                     is_within_range(run_itr->read_range_start, run_itr->read_range_end, 
                                     seed_run.read_range_start, seed_run.read_range_end) &&
@@ -2869,10 +2874,47 @@ void ZipCodeForest::get_cyclic_snarl_intervals( forest_growing_state_t& forest_s
                 return a.read_range_end < b.read_range_end;
             }
             });
-        interval_i++;
+        ++interval_i;
     }
+    
     //TODO: Merge consecutive runs on the same chain. This shouldn't affect correctness because separate 
     //      should be unreachable, but it would make the snarls smaller
+
+    //To remove an element, keep track of the element (run_itr) and the previous iterator (prev_itr),
+    // and remove_after the previous iterator
+    auto prev_itr = all_runs.begin();
+    auto run_itr = all_runs.begin();
+    run_itr++;
+
+    while (run_itr != all_runs.end()) {
+        if (run_itr->chain_id == prev_itr->chain_id && 
+            run_itr->is_reversed == prev_itr->is_reversed &&
+            run_itr->is_reversed_read == prev_itr->is_reversed_read) {
+            //If the current and previous run can be combined, add the current to the previous 
+            // and erase the current with remove_after(prev_itr)
+
+            //Combine the runs
+            prev_itr->uf_head = union_find.union_groups(run_itr->uf_head, 
+                                                       prev_itr->uf_head);
+            prev_itr->read_range_start = std::min(run_itr->read_range_start, 
+                                                 prev_itr->read_range_start);
+            prev_itr->read_range_end = std::max(run_itr->read_range_end, 
+                                               prev_itr->read_range_end);
+
+            prev_itr->chain_range_start = std::min(run_itr->chain_range_start, 
+                                                  prev_itr->chain_range_start);
+            prev_itr->chain_range_end = std::max(run_itr->chain_range_end, 
+                                                        prev_itr->chain_range_end);
+
+            //Remove this run
+            run_itr = all_runs.erase_after(prev_itr);
+        } else {
+            //Otherwise, iterate to the new run
+            ++run_itr;
+            ++prev_itr;
+        }
+    }
+
 
     /******* Re-sort seeds by the new runs and make new intervals of the runs on the chains 
         The orientation of the runs is determined by the orientation of the read along the parent chain  ***********/
