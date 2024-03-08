@@ -2796,8 +2796,7 @@ void ZipCodeForest::get_cyclic_snarl_intervals( forest_growing_state_t& forest_s
                 //A seed is reachable with a run if they are both on the same strand on the read,
                 //the seed is close enough in the read, and if the seed is close enough in the chain 
 
-                //TODO: Also make sure its facing the right way in the read. idk why this is commented out
-                if (//is_reversed_read == run_itr->is_reversed_read &&
+                if (is_reversed_read == run_itr->is_reversed_read &&
                     is_within_range(run_itr->read_range_start, run_itr->read_range_end, 
                                     seed_run.read_range_start, seed_run.read_range_end) &&
                     is_within_range(run_itr->chain_range_start, run_itr->chain_range_end, 
@@ -2876,9 +2875,6 @@ void ZipCodeForest::get_cyclic_snarl_intervals( forest_growing_state_t& forest_s
             });
         ++interval_i;
     }
-    
-    //TODO: Merge consecutive runs on the same chain. This shouldn't affect correctness because separate 
-    //      should be unreachable, but it would make the snarls smaller
 
     //To remove an element, keep track of the element (run_itr) and the previous iterator (prev_itr),
     // and remove_after the previous iterator
