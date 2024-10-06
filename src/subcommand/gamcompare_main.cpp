@@ -31,6 +31,7 @@ void help_gamcompare(char** argv) {
          << "    -T, --tsv                  output TSV (correct, mq, aligner, read) compatible with plot-qq.R instead of GAM" << endl
          << "    -a, --aligner              aligner name for TSV output [\"vg\"]" << endl
          << "    -s, --score-alignment      get a correctness score of the alignment (higher is better)" << endl
+         << "    -S, --ignore-secondaries   don't include secondary alignments" << endl
          << "    -t, --threads N            number of threads to use" << endl;
 }
 
@@ -96,6 +97,7 @@ int main_gamcompare(int argc, char** argv) {
     bool output_tsv = false;
     string aligner_name = "vg";
     bool score_alignment = false;
+    bool ignore_secondaries = false;
     string distance_name;
     // Map from query contigs to corresponding truth contigs
     std::unordered_map<string, string> renames;
@@ -112,12 +114,13 @@ int main_gamcompare(int argc, char** argv) {
             {"tsv", no_argument, 0, 'T'},
             {"aligner", required_argument, 0, 'a'},
             {"score-alignment", no_argument, 0, 's'},
+            {"ignore-secondaries", no_argument, 0, 'S'},
             {"threads", required_argument, 0, 't'},
             {0, 0, 0, 0}
         };
 
         int option_index = 0;
-        c = getopt_long (argc, argv, "hd:r:n:Ta:st:",
+        c = getopt_long (argc, argv, "hd:r:n:Ta:sSt:",
                          long_options, &option_index);
 
         // Detect the end of the options.
@@ -163,6 +166,10 @@ int main_gamcompare(int argc, char** argv) {
             score_alignment = true;
             break;
 
+        case 'S':
+            ignore_secondaries = true;
+            break;
+
         case 't':
             threads = parse<int>(optarg);
             omp_set_num_threads(threads);
@@ -204,7 +211,7 @@ int main_gamcompare(int argc, char** argv) {
     };
 
     if (truth_file_name == "-") {
-        // Read truth fropm standard input, if it looks good.
+        // Read truth frop standard input, if it looks good.
         if (test_file_name == "-") {
             cerr << "error[vg gamcompare]: Standard input can only be used for truth or test file, not both" << endl;
             exit(1);
@@ -287,6 +294,9 @@ int main_gamcompare(int argc, char** argv) {
    
     // This function annotates every read with distance and correctness, and batch-outputs them.
     function<void(Alignment&)> annotate_test = [&](Alignment& aln) {
+        if (ignore_secondaries && aln.is_secondary()) {
+            return;
+        }
         bool found = false;
         if (distance_name.empty()) {
             //If the distance index isn't used
