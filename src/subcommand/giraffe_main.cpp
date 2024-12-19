@@ -1638,7 +1638,13 @@ int main_giraffe(int argc, char** argv) {
     if (show_progress) {
         cerr << "Loading Minimizer Index" << endl;
     }
-    auto minimizer_index = vg::io::VPKG::load_one<gbwtgraph::DefaultMinimizerIndex>(registry.require("Minimizers").at(0));
+    unique_ptr<gbwtgraph::DefaultMinimizerIndex> minimizer_index;
+    try {
+        minimizer_index = vg::io::VPKG::load_one<gbwtgraph::DefaultMinimizerIndex>(registry.require("Minimizers").at(0));
+    } catch (const std::exception& ex) {
+        cerr << "error:[vg giraffe] Couldn't open Minimizer file " << optarg << endl;
+        exit(1);
+    }
 
     // Grab the zipcodes
     if (show_progress) {
