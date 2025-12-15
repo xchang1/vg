@@ -24,10 +24,15 @@ int main_update_dist(int argc, char** argv) {
     if (argc == 2) {
         help_update_dist(argv);
         return 1;
+    } else if (argc != 4) {
+        cerr << "vg update_dist requires an input and output distance index" << endl;
+        help_update_dist(argv);
+        return 0;
     }
 
-    std::string in_dist_name = argv[3];
-    std::string out_dist_name = argv[4];
+
+    std::string in_dist_name (argv[2]);
+    std::string out_dist_name (argv[3]);
 
     cerr << "Re-writing old distance index " << in_dist_name << " to new file " << out_dist_name << endl;
 
