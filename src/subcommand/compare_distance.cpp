@@ -31,13 +31,6 @@ using namespace std;
 using namespace vg;
 using namespace vg::subcommand;
 
-// Define a fake minimizer that only has the stuff that the zipcode tree needs
-struct fake_value_t {
-    size_t offset;
-};
-struct fake_minimizer_t {
-    fake_value_t value;
-};
 
 void help_testzip(char** argv) {
     cerr
@@ -199,6 +192,7 @@ int main_testzip(int argc, char** argv) {
             //Make the minimizer
             fake_minimizer_t minimizer;
             minimizer.value.offset = read_pos;
+            minimizer.value.is_reverse = false;
             minimizers.emplace_back(std::move(minimizer));
 
             anchors.emplace_back(read_pos, pos, 1, 10, 10, 10);

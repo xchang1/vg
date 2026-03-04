@@ -2547,6 +2547,7 @@ void ZipCodeForest::default_sort_zipcodes(vector<size_t>& zipcode_sort_order, co
     });
 }
 
+template void ZipCodeForest::fill_in_forest<fake_minimizer_t>(const vector<Seed>&, const VectorView<fake_minimizer_t>&, const SnarlDistanceIndex&, size_t, size_t);
 template void ZipCodeForest::fill_in_forest<MinimizerMapper::Minimizer>(const vector<Seed>&, const VectorView<MinimizerMapper::Minimizer>&, const SnarlDistanceIndex&, size_t, size_t);
 
 template<typename Minimizer>

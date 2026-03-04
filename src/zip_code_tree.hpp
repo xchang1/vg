@@ -13,6 +13,15 @@
 
 namespace vg{
 using namespace std;
+// Define a fake minimizer that only has the stuff that the zipcode tree needs
+struct fake_value_t {
+    size_t offset;
+    bool is_reverse;
+};
+struct fake_minimizer_t {
+    fake_value_t value;
+};
+
 
 /**
 
