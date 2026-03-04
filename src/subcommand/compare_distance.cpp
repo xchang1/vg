@@ -156,7 +156,8 @@ int main_testzip(int argc, char** argv) {
     std::random_device rd;  // a seed source for the random number engine
     std::mt19937 gen(rd()); // mersenne_twister_engine seeded with rd()
     std::uniform_int_distribution<> path_distr(0, paths.size()-1);
-    std::uniform_int_distribution<> seed_gap_distr(1, 300);
+    // Rough distribution of distances between seeds from real hifi reads
+    std::normal_distribution<> seed_gap_distr{130, 123};
 
     std::cout << "truth_distance\tziptree_distance" << endl;
     #pragma omp parallel for
