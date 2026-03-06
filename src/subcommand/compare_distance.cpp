@@ -174,15 +174,18 @@ int main_testzip(int argc, char** argv) {
         std::vector<fake_minimizer_t> minimizers;
         std::vector<vg::algorithms::Anchor> anchors;
 
-        size_t read_pos = 0;
-        while (read_pos < read_length) {
-            // Get the next start of a seed
-            read_pos += seed_gap_distr(gen); 
+        size_t read_pos = read_start;
+        while (read_pos < read_start + read_length && read_pos < path_length) {
 
-            handle_t handle = graph->get_handle_of_step(graph->get_step_at_position(path, read_pos));
+            step_handle_t step = graph->get_step_at_position(path, read_pos);
+            handle_t handle = graph->get_handle_of_step(step);
+            // Get the offset of the node on the path to get the right offset on the node
+            size_t node_start_offset = graph->get_position_of_step(step); 
+            assert(node_start_offset <= read_pos);
+            assert((read_pos - node_start_offset) <= graph->get_length(handle));
 
             // Don't bother getting an offset, it doesn't really matter
-            pos_t pos = make_pos_t(graph->get_id(handle), 0, graph->get_is_reverse(handle));
+            pos_t pos = make_pos_t(graph->get_id(handle), read_pos - node_start_offset, graph->get_is_reverse(handle));
 
             // Make the zipcode
             ZipCode zipcode;
@@ -197,7 +200,10 @@ int main_testzip(int argc, char** argv) {
             minimizer.value.is_reverse = false;
             minimizers.emplace_back(std::move(minimizer));
 
-            anchors.emplace_back(read_pos, pos, 1, 10, 10, 10);
+            anchors.emplace_back(read_pos, pos, 1, 10, 10, 10, seeds.size()-1);
+
+            // Get the next start of a seed
+            read_pos += seed_gap_distr(gen); 
         }
         // Make the vector view of minimizers
         std::vector<size_t> minimizer_order(minimizers.size(), 0);
@@ -222,7 +228,7 @@ int main_testzip(int argc, char** argv) {
 
         for (const ZipCodeTree& ziptree : forest.trees) {
 
-            vg::algorithms::transition_iterator for_each_transition = vg::algorithms::zip_tree_transition_iterator(seeds, ziptree, 300, std::numeric_limits<size_t>::max());
+            vg::algorithms::transition_iterator for_each_transition = vg::algorithms::zip_tree_transition_iterator(seeds, ziptree, 500, std::numeric_limits<size_t>::max());
 
             for_each_transition(anchor_vector, *distance_index, *graph, 2000, [&](size_t from_anchor, size_t to_anchor, size_t read_distance, size_t graph_distance) {
                 #pragma omp critical (cout)
