@@ -34,7 +34,8 @@ using namespace vg::subcommand;
 
 void help_testzip(char** argv) {
     cerr
-    << "usage: " << argv[0] << " test distances found by zipcode trees by simulating reads and seeds along a path in the graph. Writes tsv of \"real_distance\tzipcode_distance\" to stdout" << endl
+    << "usage: " << argv[0] << " testzip -x [graph] -d [dist] > distances.tsv" << endl 
+    << "test distances found by zipcode trees by simulating reads and seeds along a path in the graph. Writes tsv of \"real_distance\tzipcode_distance\" to stdout" << endl
     << endl
     << "basic options:" << endl
     << "  -h, --help                    print this help message to stderr and exit" << endl
