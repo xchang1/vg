@@ -221,9 +221,9 @@ int main_testzip(int argc, char** argv) {
 
         for (const ZipCodeTree& ziptree : forest.trees) {
 
-            vg::algorithms::transition_iterator for_each_transition = vg::algorithms::zip_tree_transition_iterator(seeds, ziptree, 300, std::numeric_limits<size_t>::max());
+            vg::algorithms::transition_iterator for_each_transition = vg::algorithms::zip_tree_transition_iterator(seeds, ziptree, 3000, std::numeric_limits<size_t>::max());
 
-            for_each_transition(anchor_vector, *distance_index, *graph, 2000, [&](size_t from_anchor, size_t to_anchor, size_t read_distance, size_t graph_distance) {
+            for_each_transition(anchor_vector, *distance_index, *graph, 3000, [&](size_t from_anchor, size_t to_anchor, size_t read_distance, size_t graph_distance) {
                 #pragma omp critical (cout)
                 {
                     std::cout << read_distance << "\t" << graph_distance << std::endl;
