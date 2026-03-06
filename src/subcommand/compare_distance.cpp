@@ -136,15 +136,26 @@ int main_testzip(int argc, char** argv) {
     
     // create in-memory objects
     unique_ptr<PathHandleGraph> path_handle_graph = vg::io::VPKG::load_one<PathHandleGraph>(xg_name);
+
+    // Get a list of paths to include in the path position overlay
+    std::unordered_set<std::string> paths_set;
+    
+    // go through all paths in the pangenome and save them
+    path_handle_graph->for_each_path_matching(nullptr, nullptr, nullptr, [&] (handlegraph::path_handle_t path) {
+        paths_set.emplace(path_handle_graph->get_path_name(path));
+        return true;
+    });
+
     bdsg::PathPositionOverlayHelper overlay_helper;
-    PathPositionHandleGraph* graph = overlay_helper.apply(path_handle_graph.get());
+    PathPositionHandleGraph* graph = overlay_helper.apply(path_handle_graph.get(), paths_set);
+
     unique_ptr<SnarlDistanceIndex> distance_index = vg::io::VPKG::load_one<SnarlDistanceIndex>(distance_name);
     distance_index->preload(true);
 
 
     // Get all paths
     std::vector<path_handle_t> paths;
-    graph->for_each_path_handle([&](const path_handle_t& path_handle) {
+    graph->for_each_path_matching(nullptr, nullptr, nullptr, [&] (handlegraph::path_handle_t path_handle) {
         paths.emplace_back(path_handle);
         return true;
     });
