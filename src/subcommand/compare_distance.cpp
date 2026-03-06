@@ -34,7 +34,8 @@ using namespace vg::subcommand;
 
 void help_testzip(char** argv) {
     cerr
-    << "usage: " << argv[0] << " test distances found by zipcode trees by simulating reads and seeds along a path in the graph. Writes tsv of \"real_distance\tzipcode_distance\" to stdout" << endl
+    << "usage: " << argv[0] << " testzip -x [graph] -d [dist] > distances.tsv" << endl 
+    << "test distances found by zipcode trees by simulating reads and seeds along a path in the graph. Writes tsv of \"real_distance\tzipcode_distance\" to stdout" << endl
     << endl
     << "basic options:" << endl
     << "  -h, --help                    print this help message to stderr and exit" << endl
@@ -135,15 +136,26 @@ int main_testzip(int argc, char** argv) {
     
     // create in-memory objects
     unique_ptr<PathHandleGraph> path_handle_graph = vg::io::VPKG::load_one<PathHandleGraph>(xg_name);
+
+    // Get a list of paths to include in the path position overlay
+    std::unordered_set<std::string> paths_set;
+    
+    // go through all paths in the pangenome and save them
+    path_handle_graph->for_each_path_matching(nullptr, nullptr, nullptr, [&] (handlegraph::path_handle_t path) {
+        paths_set.emplace(path_handle_graph->get_path_name(path));
+        return true;
+    });
+
     bdsg::PathPositionOverlayHelper overlay_helper;
-    PathPositionHandleGraph* graph = overlay_helper.apply(path_handle_graph.get());
+    PathPositionHandleGraph* graph = overlay_helper.apply(path_handle_graph.get(), paths_set);
+
     unique_ptr<SnarlDistanceIndex> distance_index = vg::io::VPKG::load_one<SnarlDistanceIndex>(distance_name);
     distance_index->preload(true);
 
 
     // Get all paths
     std::vector<path_handle_t> paths;
-    graph->for_each_path_handle([&](const path_handle_t& path_handle) {
+    graph->for_each_path_matching(nullptr, nullptr, nullptr, [&] (handlegraph::path_handle_t path_handle) {
         paths.emplace_back(path_handle);
         return true;
     });
@@ -173,15 +185,18 @@ int main_testzip(int argc, char** argv) {
         std::vector<fake_minimizer_t> minimizers;
         std::vector<vg::algorithms::Anchor> anchors;
 
-        size_t read_pos = 0;
-        while (read_pos < read_length) {
-            // Get the next start of a seed
-            read_pos += seed_gap_distr(gen); 
+        size_t read_pos = read_start;
+        while (read_pos < read_start + read_length && read_pos < path_length) {
 
-            handle_t handle = graph->get_handle_of_step(graph->get_step_at_position(path, read_pos));
+            step_handle_t step = graph->get_step_at_position(path, read_pos);
+            handle_t handle = graph->get_handle_of_step(step);
+            // Get the offset of the node on the path to get the right offset on the node
+            size_t node_start_offset = graph->get_position_of_step(step); 
+            assert(node_start_offset <= read_pos);
+            assert((read_pos - node_start_offset) <= graph->get_length(handle));
 
             // Don't bother getting an offset, it doesn't really matter
-            pos_t pos = make_pos_t(graph->get_id(handle), 0, graph->get_is_reverse(handle));
+            pos_t pos = make_pos_t(graph->get_id(handle), read_pos - node_start_offset, graph->get_is_reverse(handle));
 
             // Make the zipcode
             ZipCode zipcode;
@@ -196,7 +211,10 @@ int main_testzip(int argc, char** argv) {
             minimizer.value.is_reverse = false;
             minimizers.emplace_back(std::move(minimizer));
 
-            anchors.emplace_back(read_pos, pos, 1, 10, 10, 10);
+            anchors.emplace_back(read_pos, pos, 1, 10, 10, 10, seeds.size()-1);
+
+            // Get the next start of a seed
+            read_pos += seed_gap_distr(gen); 
         }
         // Make the vector view of minimizers
         std::vector<size_t> minimizer_order(minimizers.size(), 0);
