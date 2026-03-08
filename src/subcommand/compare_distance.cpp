@@ -197,7 +197,7 @@ int main_testzip(int argc, char** argv) {
             assert(node_start_offset <= seed_offset);
             assert((seed_offset - node_start_offset) < graph->get_length(handle));
 
-            pos_t pos = make_pos_t(graph->get_id(handle), seed_offset - node_start_offset, graph->get_is_reverse(handle));
+            pos_t pos = make_pos_t(graph->get_id(handle), graph->get_is_reverse(handle), seed_offset - node_start_offset);
 
             // Make the zipcode
             ZipCode zipcode;
