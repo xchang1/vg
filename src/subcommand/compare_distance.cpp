@@ -171,7 +171,7 @@ int main_testzip(int argc, char** argv) {
     // Rough distribution of distances between seeds from real hifi reads
     std::normal_distribution<> seed_gap_distr{130, 123};
 
-    std::cout << "truth_distance\tziptree_distance" << endl;
+    std::cout << "truth_distance\tziptree_distance\tdiff" << endl;
     #pragma omp parallel for
     for (size_t i = 0 ; i < read_count ; i++) {
 
@@ -179,24 +179,25 @@ int main_testzip(int argc, char** argv) {
         const path_handle_t& path = paths.at(path_distr(gen));
         size_t path_length = graph->get_path_length(path);
         std::uniform_int_distribution<> read_start_distr(0, path_length);
-        size_t read_start = read_start_distr(gen);
+        size_t read_start_offset = read_start_distr(gen);
 
         std::vector<SnarlDistanceIndexClusterer::Seed> seeds;
         std::vector<fake_minimizer_t> minimizers;
         std::vector<vg::algorithms::Anchor> anchors;
 
-        size_t read_pos = read_start;
-        while (read_pos < read_start + read_length && read_pos < path_length) {
+        size_t seed_offset = read_start_offset;
+        while (seed_offset < read_start_offset + read_length && seed_offset < path_length) {
 
-            step_handle_t step = graph->get_step_at_position(path, read_pos);
+            step_handle_t step = graph->get_step_at_position(path, seed_offset);
             handle_t handle = graph->get_handle_of_step(step);
-            // Get the offset of the node on the path to get the right offset on the node
-            size_t node_start_offset = graph->get_position_of_step(step); 
-            assert(node_start_offset <= read_pos);
-            assert((read_pos - node_start_offset) <= graph->get_length(handle));
 
-            // Don't bother getting an offset, it doesn't really matter
-            pos_t pos = make_pos_t(graph->get_id(handle), read_pos - node_start_offset, graph->get_is_reverse(handle));
+            // Get the offset of the start of the node on the path
+            size_t node_start_offset = graph->get_position_of_step(step); 
+
+            assert(node_start_offset <= seed_offset);
+            assert((seed_offset - node_start_offset) < graph->get_length(handle));
+
+            pos_t pos = make_pos_t(graph->get_id(handle), seed_offset - node_start_offset, graph->get_is_reverse(handle));
 
             // Make the zipcode
             ZipCode zipcode;
@@ -207,14 +208,14 @@ int main_testzip(int argc, char** argv) {
 
             //Make the minimizer
             fake_minimizer_t minimizer;
-            minimizer.value.offset = read_pos;
+            minimizer.value.offset = seed_offset;
             minimizer.value.is_reverse = false;
             minimizers.emplace_back(std::move(minimizer));
 
-            anchors.emplace_back(read_pos, pos, 1, 10, 10, 10, seeds.size()-1);
+            anchors.emplace_back(seed_offset, pos, 1, 10, 10, 10, seeds.size()-1);
 
             // Get the next start of a seed
-            read_pos += seed_gap_distr(gen); 
+            seed_offset += seed_gap_distr(gen); 
         }
         // Make the vector view of minimizers
         std::vector<size_t> minimizer_order(minimizers.size(), 0);
@@ -244,7 +245,7 @@ int main_testzip(int argc, char** argv) {
             for_each_transition(anchor_vector, *distance_index, *graph, 3000, [&](size_t from_anchor, size_t to_anchor, size_t read_distance, size_t graph_distance) {
                 #pragma omp critical (cout)
                 {
-                    std::cout << read_distance << "\t" << graph_distance << std::endl;
+                    std::cout << read_distance << "\t" << graph_distance << "\t" << ((int)read_distance -(int)graph_distance) << std::endl;
                 }
 
             });
