@@ -1,5 +1,5 @@
 /**
- * \file compare_distance.cpp: Simulate seeds along a path, build a zipcode tree, and print the real distance along the path and the distance from zipcodes to stdout
+ * \file compare_distance.cpp: Simulate seeds along a random walk, build a zipcode tree, and print the real distance along the walk and the distance from zipcodes to stdout
  */
 
 #include <omp.h>
@@ -19,8 +19,6 @@
 #include <vg/io/vpkg.hpp>
 #include <vg/io/stream.hpp>
 
-#include <bdsg/overlays/overlay_helper.hpp>
-
 //#define USE_CALLGRIND
 
 #ifdef USE_CALLGRIND
@@ -35,7 +33,7 @@ using namespace vg::subcommand;
 void help_testzip(char** argv) {
     cerr
     << "usage: " << argv[0] << " testzip -x [graph] -d [dist] > distances.tsv" << endl 
-    << "test distances found by zipcode trees by simulating reads and seeds along a path in the graph. Writes tsv of \"real_distance\tzipcode_distance\" to stdout" << endl
+    << "test distances found by zipcode trees by simulating reads and seeds along a random walk in the graph. Writes tsv of \"real_distance\tzipcode_distance\" to stdout" << endl
     << endl
     << "basic options:" << endl
     << "  -h, --help                    print this help message to stderr and exit" << endl
@@ -136,29 +134,10 @@ int main_testzip(int argc, char** argv) {
     
     // create in-memory objects
     unique_ptr<PathHandleGraph> path_handle_graph = vg::io::VPKG::load_one<PathHandleGraph>(xg_name);
-
-    // Get a list of paths to include in the path position overlay
-    std::unordered_set<std::string> paths_set;
-    
-    // go through all paths in the pangenome and save them
-    path_handle_graph->for_each_path_matching(nullptr, nullptr, nullptr, [&] (handlegraph::path_handle_t path) {
-        paths_set.emplace(path_handle_graph->get_path_name(path));
-        return true;
-    });
-
-    bdsg::PathPositionOverlayHelper overlay_helper;
-    PathPositionHandleGraph* graph = overlay_helper.apply(path_handle_graph.get(), paths_set);
+    PathHandleGraph* graph = path_handle_graph.get();
 
     unique_ptr<SnarlDistanceIndex> distance_index = vg::io::VPKG::load_one<SnarlDistanceIndex>(distance_name);
     distance_index->preload(true);
-
-
-    // Get all paths
-    std::vector<path_handle_t> paths;
-    graph->for_each_path_matching(nullptr, nullptr, nullptr, [&] (handlegraph::path_handle_t path_handle) {
-        paths.emplace_back(path_handle);
-        return true;
-    });
 
     // For now, just use 1500 as the length of the read
     size_t read_length = 1500;
@@ -167,7 +146,7 @@ int main_testzip(int argc, char** argv) {
     //Copied from https://en.cppreference.com/w/cpp/numeric/random/uniform_int_distribution.html
     std::random_device rd;  // a seed source for the random number engine
     std::mt19937 gen(rd()); // mersenne_twister_engine seeded with rd()
-    std::uniform_int_distribution<> path_distr(0, paths.size()-1);
+    std::uniform_int_distribution<> node_id_distr(graph->min_node_id(), graph->max_node_id());
     // Rough distribution of distances between seeds from real hifi reads
     std::normal_distribution<> seed_gap_distr{130, 123};
 
@@ -175,47 +154,83 @@ int main_testzip(int argc, char** argv) {
     #pragma omp parallel for
     for (size_t i = 0 ; i < read_count ; i++) {
 
+        // Start random walk from a random node
+        handlegraph::id_t node_id = node_id_distr(gen);
+        if (!graph->has_node(node_id)) {
+            continue;
+        }
+        pos_t current_position = make_pos_t(node_id, false, 0);
+        handle_t current_handle = graph->get_handle(node_id, false);
 
-        const path_handle_t& path = paths.at(path_distr(gen));
-        size_t path_length = graph->get_path_length(path);
-        std::uniform_int_distribution<> read_start_distr(0, path_length);
-        size_t read_start_offset = read_start_distr(gen);
 
         std::vector<SnarlDistanceIndexClusterer::Seed> seeds;
         std::vector<fake_minimizer_t> minimizers;
         std::vector<vg::algorithms::Anchor> anchors;
 
-        size_t seed_offset = read_start_offset;
-        while (seed_offset < read_start_offset + read_length && seed_offset < path_length) {
+        size_t seed_offset_in_path = 0;
+        while (seed_offset_in_path < read_length) {
 
-            step_handle_t step = graph->get_step_at_position(path, seed_offset);
-            handle_t handle = graph->get_handle_of_step(step);
+            // Get the next start of a seed
+            size_t distance_to_traverse = seed_gap_distr(gen);
 
-            // Get the offset of the start of the node on the path
-            size_t node_start_offset = graph->get_position_of_step(step); 
+            // Update the position in the "read"
+            seed_offset_in_path += distance_to_traverse; 
 
-            assert(node_start_offset <= seed_offset);
-            assert((seed_offset - node_start_offset) < graph->get_length(handle));
+            // Randomly walk through the graph distance_to_traverse bases
+            while (distance_to_traverse > 0) {
+                size_t current_node_length = graph->get_length(current_handle);
+                assert(get_offset(current_position) <= current_node_length);
+                size_t distance_to_end_of_node = current_node_length - get_offset(current_position); 
+                if (distance_to_traverse < distance_to_end_of_node) {
+                    // If we end the traversal in this node, put the position at the end of the traversal and stop
+                    pos_t new_pos = make_pos_t(get_id(current_position), get_is_rev(current_position), get_offset(current_position) + distance_to_traverse);
+                    distance_to_traverse = 0;
+                } else {
+                    // If we keep going, pick a random next node and reset the position to the start of this node
 
-            pos_t pos = make_pos_t(graph->get_id(handle), graph->get_is_reverse(handle), seed_offset - node_start_offset);
+
+                    // Pick a random edge to follow. To do this, find how many edges there are and pick a random one
+                    size_t next_step_count = 0;
+                    graph->follow_edges(current_handle, false, [&](const handle_t& next) {
+                        next_step_count++;
+                        return true;
+                    });
+                    std::uniform_int_distribution<> edge_distr(0, next_step_count);
+                    size_t next_edge_num = edge_distr(gen);
+
+                    handle_t next_handle;
+                    graph->follow_edges(current_handle, false, [&](const handle_t& next) {
+                        if (next_edge_num == 0) {
+                            next_handle = next;
+                            return false;
+                        } else {
+                            --next_edge_num;
+                            return true;
+                        }
+                    });
+
+
+                    current_position = make_pos_t(graph->get_id(next_handle), graph->get_is_reverse(next_handle), 0);
+                    current_handle = next_handle;
+                    distance_to_traverse -= distance_to_end_of_node;
+                }
+            }
 
             // Make the zipcode
             ZipCode zipcode;
-            zipcode.fill_in_zipcode(*distance_index, pos);
+            zipcode.fill_in_zipcode(*distance_index, current_position);
 
             //Make the seed
-            seeds.emplace_back(pos, minimizers.size(), zipcode); 
+            seeds.emplace_back(current_position, minimizers.size(), zipcode); 
 
             //Make the minimizer
             fake_minimizer_t minimizer;
-            minimizer.value.offset = seed_offset;
+            minimizer.value.offset = seed_offset_in_path;
             minimizer.value.is_reverse = false;
             minimizers.emplace_back(std::move(minimizer));
 
-            anchors.emplace_back(seed_offset, pos, 1, 10, 10, 10, seeds.size()-1);
+            anchors.emplace_back(seed_offset_in_path, current_position, 1, 10, 10, 10, seeds.size()-1);
 
-            // Get the next start of a seed
-            seed_offset += seed_gap_distr(gen); 
         }
         // Make the vector view of minimizers
         std::vector<size_t> minimizer_order(minimizers.size(), 0);
