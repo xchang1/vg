@@ -148,7 +148,7 @@ int main_testzip(int argc, char** argv) {
     std::mt19937 gen(rd()); // mersenne_twister_engine seeded with rd()
     std::uniform_int_distribution<> node_id_distr(graph->min_node_id(), graph->max_node_id());
     // Rough distribution of distances between seeds from real hifi reads
-    std::normal_distribution<> seed_gap_distr{2, 2};
+    std::normal_distribution<> seed_gap_distr{130, 123};
 
     std::cout << "truth_distance\tziptree_distance\tdiff" << endl;
     #pragma omp parallel for
