@@ -172,6 +172,9 @@ int main_testzip(int argc, char** argv) {
 
             // Get the next start of a seed
             size_t distance_to_traverse = seed_gap_distr(gen);
+            if (distance_to_traverse > (read_length - seed_offset_in_path)) {
+                break;
+            }
 
             // Update the position in the "read"
             seed_offset_in_path += distance_to_traverse; 
@@ -195,23 +198,26 @@ int main_testzip(int argc, char** argv) {
                         next_step_count++;
                         return true;
                     });
+                    if (next_step_count == 0) {
+                        break;
+                    }
                     std::uniform_int_distribution<> edge_distr(0, next_step_count);
                     size_t next_edge_num = edge_distr(gen);
 
-                    handle_t next_handle;
-                    graph->follow_edges(current_handle, false, [&](const handle_t& next) {
+                    bool found_next_node = graph->follow_edges(current_handle, false, [&](const handle_t& next_handle) {
+                        assert(next_edge_num >= 0);
                         if (next_edge_num == 0) {
-                            next_handle = next;
-                            return false;
+                            // Reserve false for no tips
+                            current_position = make_pos_t(graph->get_id(next_handle), graph->get_is_reverse(next_handle), 0);
+                            current_handle = next_handle;
+                            return true;
                         } else {
                             --next_edge_num;
                             return true;
                         }
                     });
 
-
-                    current_position = make_pos_t(graph->get_id(next_handle), graph->get_is_reverse(next_handle), 0);
-                    current_handle = next_handle;
+                    assert(distance_to_end_of_node <= distance_to_traverse);
                     distance_to_traverse -= distance_to_end_of_node;
                 }
             }
