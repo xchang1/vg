@@ -179,6 +179,9 @@ int main_testzip(int argc, char** argv) {
             // Update the position in the "read"
             seed_offset_in_path += distance_to_traverse; 
 
+            // If we hit a tip in the walk, break out of the outer loop without adding a new seed
+            bool hit_tip = false;
+
             // Randomly walk through the graph distance_to_traverse bases
             while (distance_to_traverse > 0) {
                 size_t current_node_length = graph->get_length(current_handle);
@@ -187,6 +190,7 @@ int main_testzip(int argc, char** argv) {
                 if (distance_to_traverse < distance_to_end_of_node) {
                     // If we end the traversal in this node, put the position at the end of the traversal and stop
                     pos_t new_pos = make_pos_t(get_id(current_position), get_is_rev(current_position), get_offset(current_position) + distance_to_traverse);
+                    current_position = new_pos;
                     distance_to_traverse = 0;
                 } else {
                     // If we keep going, pick a random next node and reset the position to the start of this node
@@ -199,20 +203,22 @@ int main_testzip(int argc, char** argv) {
                         return true;
                     });
                     if (next_step_count == 0) {
+                        // If there is nothing left to traverse, break out of the outer loop
+                        hit_tip = true;
                         break;
                     }
-                    std::uniform_int_distribution<> edge_distr(0, next_step_count);
+                    std::uniform_int_distribution<> edge_distr(0, next_step_count-1);
                     size_t next_edge_num = edge_distr(gen);
+                    size_t current_edge = 0;
 
                     bool found_next_node = graph->follow_edges(current_handle, false, [&](const handle_t& next_handle) {
-                        assert(next_edge_num >= 0);
-                        if (next_edge_num == 0) {
+                        if (next_edge_num == current_edge) {
                             // Reserve false for no tips
                             current_position = make_pos_t(graph->get_id(next_handle), graph->get_is_reverse(next_handle), 0);
                             current_handle = next_handle;
                             return true;
                         } else {
-                            --next_edge_num;
+                            ++current_edge;
                             return true;
                         }
                     });
@@ -220,6 +226,9 @@ int main_testzip(int argc, char** argv) {
                     assert(distance_to_end_of_node <= distance_to_traverse);
                     distance_to_traverse -= distance_to_end_of_node;
                 }
+            }
+            if (hit_tip) {
+                break;
             }
 
             // Make the zipcode
