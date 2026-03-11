@@ -148,7 +148,7 @@ int main_testzip(int argc, char** argv) {
     std::mt19937 gen(rd()); // mersenne_twister_engine seeded with rd()
     std::uniform_int_distribution<> node_id_distr(graph->min_node_id(), graph->max_node_id());
     // Rough distribution of distances between seeds from real hifi reads
-    std::normal_distribution<> seed_gap_distr{130, 123};
+    std::normal_distribution<> seed_gap_distr{2, 2};
 
     std::cout << "truth_distance\tziptree_distance\tdiff" << endl;
     #pragma omp parallel for
@@ -209,16 +209,14 @@ int main_testzip(int argc, char** argv) {
                     }
                     std::uniform_int_distribution<> edge_distr(0, next_step_count-1);
                     size_t next_edge_num = edge_distr(gen);
-                    size_t current_edge = 0;
 
-                    bool found_next_node = graph->follow_edges(current_handle, false, [&](const handle_t& next_handle) {
-                        if (next_edge_num == current_edge) {
-                            // Reserve false for no tips
+                    graph->follow_edges(current_handle, false, [&](const handle_t& next_handle) {
+                        if (next_edge_num == 0) {
                             current_position = make_pos_t(graph->get_id(next_handle), graph->get_is_reverse(next_handle), 0);
                             current_handle = next_handle;
-                            return true;
+                            return false;
                         } else {
-                            ++current_edge;
+                            --next_edge_num;
                             return true;
                         }
                     });
